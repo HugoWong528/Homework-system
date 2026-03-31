@@ -31,12 +31,18 @@
     .header h1 {
       font-size: 48px;
       color: #2471a3;
-      margin: 0;
+      margin: 0 0 8px;
       font-weight: 700;
       letter-spacing: 2px;
       animation: float 2s ease-in-out infinite;
       text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
     }
+    .header a {
+      color: #87CEEB;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .header a:hover { text-decoration: underline; }
     @keyframes float {
       0% { transform: translateY(0); }
       50% { transform: translateY(-8px); }
@@ -165,6 +171,7 @@
 <body>
   <div class="header">
     <h1>作業繳交紀錄</h1>
+    <a href="?">← 返回控制面板</a>
   </div>
   <div class="main-content">
     <div class="class-buttons" id="class-buttons">

@@ -175,7 +175,10 @@ function updateSubmissionStatus(sheet, studentNames, homeworkNames, deadlines) {
         if (files[i].getName().includes(student)) {
           submitted = true;
           const uploadTime = files[i].getDateCreated();
-          const deadline = new Date(deadlines[colIndex]);
+          const deadlineRaw = deadlines[colIndex];
+          const deadline = (deadlineRaw instanceof Date)
+            ? deadlineRaw
+            : Utilities.parseDate(deadlineRaw.toString(), TIMEZONE, 'yyyy-MM-dd HH:mm');
           if (uploadTime > deadline) late = true;
           break;
         }

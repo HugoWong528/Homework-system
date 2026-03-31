@@ -18,6 +18,9 @@ const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE';
 /** 學生 Google 帳號電郵域名（AutoShare.gs 使用） */
 const SCHOOL_EMAIL_DOMAIN = 'ccckyc.edu.hk';
 
+/** 平台時區（香港時間） */
+const TIMEZONE = 'Asia/Hong_Kong';
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Drive 文件夾名稱常數 */
