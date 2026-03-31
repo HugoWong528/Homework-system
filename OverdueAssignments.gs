@@ -17,6 +17,11 @@
 const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
 // 學生 Microsoft Teams 電郵域名（格式：學號@域名）
 const STUDENT_EMAIL_DOMAIN = 'ms.ccckyc.edu.hk'; // ← 按學校實際域名修改
+/** 平台時區（香港時間）。
+ * 注意：此腳本部署於獨立的 Apps Script 專案，無法存取主專案的 Shared.gs，
+ * 因此在此重複宣告（與 Shared.gs 中的 TIMEZONE 常數相同）。
+ */
+const OVERDUE_TIMEZONE = 'Asia/Hong_Kong';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -69,19 +74,22 @@ function getConfig() {
 function generateOverdueAssignments() {
   const config = getConfig();
 
-  // 從「自動共用、收集位址」取得學號→電郵映射
+  // 從「自動共用、收集位址」取得學號→電郵映射（讀取所有班別分頁）
   const studentSpreadsheet = SpreadsheetApp.openById(config.SHARE_SHEET_ID);
-  const studentSheet = studentSpreadsheet.getSheetByName('Sheet1')
-    || studentSpreadsheet.getSheets()[0];
-  const studentData = studentSheet.getRange('A2:B' + studentSheet.getLastRow()).getValues();
+  const studentSheets = studentSpreadsheet.getSheets();
 
   const studentMap = {};
-  studentData.forEach(function(row) {
-    const studentNumber = row[0];
-    const studentName   = row[1];
-    if (studentNumber && studentName) {
-      studentMap[studentName] = studentNumber + '@' + STUDENT_EMAIL_DOMAIN;
-    }
+  studentSheets.forEach(function(sSheet) {
+    const lastRow = sSheet.getLastRow();
+    if (lastRow < 2) return;
+    const studentData = sSheet.getRange('A2:B' + lastRow).getValues();
+    studentData.forEach(function(row) {
+      const studentNumber = row[0];
+      const studentName   = row[1];
+      if (studentNumber && studentName) {
+        studentMap[studentName] = studentNumber + '@' + STUDENT_EMAIL_DOMAIN;
+      }
+    });
   });
 
   // 開啟「OverdueAssignments」試算表，清空並重寫
@@ -119,13 +127,16 @@ function generateOverdueAssignments() {
       assignmentNames.forEach(function(assignment, colIndex) {
         if (!assignment) return;
         const status      = statuses[rowIndex][colIndex];
-        const deadlineStr = deadlines[colIndex];
-        const deadline    = new Date(deadlineStr);
+        const deadlineRaw = deadlines[colIndex];
+        const deadline = (deadlineRaw instanceof Date)
+          ? deadlineRaw
+          : Utilities.parseDate(deadlineRaw.toString(), OVERDUE_TIMEZONE, 'yyyy-MM-dd HH:mm');
 
         if (status === '未繳交' && currentDate > deadline) {
           const studentEmail = studentMap[student];
+          const deadlineFormatted = Utilities.formatDate(deadline, OVERDUE_TIMEZONE, 'yyyy-MM-dd HH:mm');
           if (studentEmail) {
-            overdueSheet.appendRow([className, student, studentEmail, assignment, deadlineStr]);
+            overdueSheet.appendRow([className, student, studentEmail, assignment, deadlineFormatted]);
           }
         }
       });

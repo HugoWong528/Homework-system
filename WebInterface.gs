@@ -140,7 +140,7 @@ function getClassData() {
     const deadlines = lastColumn >= 2
       ? sheet.getRange(2, 2, 1, lastColumn - 1).getValues()[0].map(function(date) {
           if (date instanceof Date) {
-            return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+            return Utilities.formatDate(date, TIMEZONE, 'yyyy-MM-dd HH:mm');
           }
           return date.toString();
         })
@@ -295,4 +295,24 @@ function setShareStudents(className, studentsJson) {
     const rows = students.map(function(s) { return [s.id || '', s.name || '', '']; });
     sheet.getRange(2, 1, rows.length, 3).setValues(rows);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 面板操作觸發函數（供 HTML 頁面透過 google.script.run 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 手動觸發文件夾建立及繳交狀態更新（由 Index.html 呼叫）。
+ * 實際邏輯定義於 SubmissionRecord.gs 的 createFoldersAndUpdateSheet()。
+ */
+function triggerFolderCreation() {
+  createFoldersAndUpdateSheet();
+}
+
+/**
+ * 手動觸發自動共用專屬文件夾（由 Index.html 呼叫）。
+ * 實際邏輯定義於 AutoShare.gs 的 shareAllClasses()。
+ */
+function triggerShareAll() {
+  shareAllClasses();
 }

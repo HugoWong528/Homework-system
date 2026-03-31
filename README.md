@@ -90,24 +90,25 @@ Google Apps Script Project (single project, all files at root)
    const ROOT_FOLDER_ID = 'your_actual_folder_id_here';
    ```
 4. Also in `Shared.gs`, update `SCHOOL_EMAIL_DOMAIN` to your school's Google email domain.
-5. Click **Run** → `setup`.
-6. Check **View → Logs**. All created folder IDs, spreadsheet IDs, and URLs will be printed — **keep this for reference**.
+5. (Optional) In the Apps Script project settings (**⚙ Project Settings**), set the **Time zone** to `(GMT+08:00) Asia/Hong_Kong`. The code already hard-codes `Asia/Hong_Kong` throughout, so this step is for consistency.
+6. Click **Run** → `setup`.
+7. Check **View → Logs**. All created folder IDs, spreadsheet IDs, and URLs will be printed — **keep this for reference**.
 
 > ✅ After this step, four folders and three spreadsheets will have been automatically created inside your root folder.
 
 ### Step 3 — Add All Scripts to the Apps Script Project
 
-The **main** `帙雲` project contains all files except `OverdueAssignments.gs`. All shared constants (`ROOT_FOLDER_ID`, `SCHOOL_EMAIL_DOMAIN`, etc.) and shared utilities (`getConfig()`, `getOrCreateFolder()`) are defined **once** in `Shared.gs`.
+The **main** `帙雲` project contains all files except `OverdueAssignments.gs`. All shared constants (`ROOT_FOLDER_ID`, `SCHOOL_EMAIL_DOMAIN`, `TIMEZONE`) and shared utilities (`getConfig()`, `getOrCreateFolder()`) are defined **once** in `Shared.gs`.
 
 **Server-side scripts (`.gs`):**
 
 | File | Description | Trigger function |
 |---|---|---|
-| `Shared.gs` | Shared constants & utilities | — |
+| `Shared.gs` | Shared constants & utilities (incl. `TIMEZONE = 'Asia/Hong_Kong'`) | — |
 | `Setup.gs` | One-time setup | Run `setup()` once manually |
 | `CollectHomework.gs` | Collect & sort student homework | `createCollectTrigger()` → every 1 min |
 | `AutoReturn.gs` | Auto-return marked homework | `createReturnTrigger()` → every 15 min |
-| `AutoShare.gs` | Share student folders & collect URLs | No trigger (run `shareAllClasses()` manually) |
+| `AutoShare.gs` | Share student folders & collect URLs | Called via web panel or run `shareAllClasses()` manually |
 | `SubmissionRecord.gs` | Submission tracking & folder creation | `createSubmissionTrigger()` → every 5 min |
 | `WebInterface.gs` | Web App backend | Web App deployment |
 
@@ -129,7 +130,7 @@ The **main** `帙雲` project contains all files except `OverdueAssignments.gs`.
 **For the main project:**
 1. All configuration is in `Shared.gs` — set `ROOT_FOLDER_ID` and `SCHOOL_EMAIL_DOMAIN` there.
 2. Run `createCollectTrigger()`, `createReturnTrigger()`, and `createSubmissionTrigger()` once each.
-3. Run `shareAllClasses()` manually from `AutoShare.gs` when needed.
+3. **All other operations are done through the web panel** — teachers do not need to open any spreadsheet directly.
 
 ### Step 4 — Deploy the Web Interface
 
@@ -173,7 +174,7 @@ Student IDs and names are now managed via the **班別及學生管理** web pane
 | B | Student name (姓名) |
 | C | Personal folder URL — auto-filled by `AutoShare.gs` |
 
-After entering student IDs and names via the web panel, run `shareAllClasses()` in `AutoShare.gs` to share folders and populate column C.
+After entering student IDs and names via the web panel, click **自動共用專屬文件夾** on the control panel (`Index.html`) to share folders and populate column C. You do not need to open the spreadsheet directly.
 
 ---
 

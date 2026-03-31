@@ -31,12 +31,18 @@
     .header h1 {
       font-size: 48px;
       color: #2471a3;
-      margin: 0;
+      margin: 0 0 8px;
       font-weight: 700;
       letter-spacing: 2px;
       animation: float 2s ease-in-out infinite;
       text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
     }
+    .header a {
+      color: #87CEEB;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .header a:hover { text-decoration: underline; }
     @keyframes float {
       0% { transform: translateY(0); }
       50% { transform: translateY(-8px); }
@@ -75,6 +81,15 @@
       color: #f0f0f0;
       box-sizing: border-box;
     }
+    input[type="datetime-local"] {
+      color-scheme: dark;
+    }
+    .hint {
+      font-size: 13px;
+      color: #aaa;
+      margin-top: -15px;
+      margin-bottom: 15px;
+    }
     button {
       padding: 15px 30px;
       background: #4682B4;
@@ -109,12 +124,6 @@
       padding: 10px;
       border-bottom: 1px solid #555;
     }
-    #deadline-error {
-      color: red;
-      font-size: 14px;
-      margin-top: -15px;
-      margin-bottom: 10px;
-    }
     .modal {
       display: none;
       position: fixed;
@@ -145,6 +154,7 @@
 <body>
   <div class="header">
     <h1>布置課業</h1>
+    <a href="?">← 返回控制面板</a>
   </div>
   <div class="main-content">
     <div class="form-container">
@@ -164,9 +174,9 @@
       <label for="keyword">關鍵詞（須包含於課業名稱中）：</label>
       <input type="text" id="keyword" placeholder="例如：寶物">
 
-      <label for="deadline">截止日期和時間（格式：年-月-日 時:分，例如 2025-04-24 23:59）：</label>
-      <input type="text" id="deadline" placeholder="2025-04-24 23:59">
-      <div id="deadline-error"></div>
+      <label for="deadline">截止日期和時間（香港時間）：</label>
+      <input type="datetime-local" id="deadline">
+      <p class="hint">⏰ 請按香港時間填寫截止日期及時間。</p>
 
       <button id="submit-btn">提交</button>
 
@@ -191,6 +201,11 @@
   </div>
 
   <script>
+    // 將 datetime-local 值（YYYY-MM-DDTHH:MM）轉換為儲存格式（YYYY-MM-DD HH:MM）
+    function formatDeadline(dtLocal) {
+      return dtLocal.replace('T', ' ');
+    }
+
     // 載入班別選項並初始化頁面
     function loadClassesAndData() {
       google.script.run
@@ -235,56 +250,15 @@
         .getSpreadsheetData();
     });
 
-    // 截止日期輸入格式化
-    const deadlineInput = document.getElementById('deadline');
-    const deadlineError = document.getElementById('deadline-error');
-
-    deadlineInput.addEventListener('input', function() {
-      let value = this.value.replace(/\D/g, '');
-      let formatted = '';
-      if (value.length > 0)  formatted += value.substr(0, 4);
-      if (value.length >= 5) formatted += '-' + value.substr(4, 2);
-      if (value.length >= 7) formatted += '-' + value.substr(6, 2);
-      if (value.length >= 9) formatted += ' ' + value.substr(8, 2);
-      if (value.length >= 11) formatted += ':' + value.substr(10, 2);
-      this.value = formatted;
-    });
-
-    deadlineInput.addEventListener('keydown', function(event) {
-      const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
-      if (!allowedKeys.includes(event.key) && !/\d/.test(event.key)) {
-        event.preventDefault();
-      }
-    });
-
-    deadlineInput.addEventListener('blur', function() {
-      const value = this.value;
-      const regex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-      if (!regex.test(value)) {
-        deadlineError.textContent = '格式錯誤，請使用「年-月-日 時:分」，例如「2025-04-24 23:59」';
-        return;
-      }
-      const parts = value.split(/[- :]/);
-      const date = new Date(
-        parseInt(parts[0], 10), parseInt(parts[1], 10) - 1,
-        parseInt(parts[2], 10), parseInt(parts[3], 10), parseInt(parts[4], 10)
-      );
-      if (isNaN(date.getTime())) {
-        deadlineError.textContent = '無效的日期或時間';
-      } else {
-        deadlineError.textContent = '';
-      }
-    });
-
     // 提交按鈕：驗證並顯示確認視窗
     document.getElementById('submit-btn').addEventListener('click', function() {
       const className    = document.getElementById('class-select').value;
       const category     = document.getElementById('category-select').value;
       const homeworkName = document.getElementById('homework-name').value.trim();
       const keyword      = document.getElementById('keyword').value.trim();
-      const deadline     = document.getElementById('deadline').value.trim();
+      const deadlineRaw  = document.getElementById('deadline').value;
 
-      if (!className || !category || !homeworkName || !keyword || !deadline) {
+      if (!className || !category || !homeworkName || !keyword || !deadlineRaw) {
         alert('請填寫所有欄位');
         return;
       }
@@ -292,17 +266,14 @@
         alert('關鍵詞必須是課業名稱的一部分');
         return;
       }
-      const deadlineRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-      if (!deadlineRegex.test(deadline)) {
-        alert('截止日期格式錯誤，請使用「年-月-日 時:分」，例如「2025-04-24 23:59」');
-        return;
-      }
+
+      const deadline = formatDeadline(deadlineRaw);
 
       document.getElementById('confirm-class').textContent        = '班別：' + className;
       document.getElementById('confirm-category').textContent     = '課業類別：' + category;
       document.getElementById('confirm-homework-name').textContent = '課業名稱：' + homeworkName;
       document.getElementById('confirm-keyword').textContent      = '關鍵詞：' + keyword;
-      document.getElementById('confirm-deadline').textContent     = '截止日期：' + deadline;
+      document.getElementById('confirm-deadline').textContent     = '截止日期（香港時間）：' + deadline;
       document.getElementById('confirm-modal').style.display = 'block';
     });
 
@@ -312,7 +283,7 @@
       const category     = document.getElementById('category-select').value;
       const homeworkName = document.getElementById('homework-name').value.trim();
       const keyword      = document.getElementById('keyword').value.trim();
-      const deadline     = document.getElementById('deadline').value.trim();
+      const deadline     = formatDeadline(document.getElementById('deadline').value);
 
       // 格式化課業名稱：「寫作（長文）」藏在泥土的【寶物】
       const finalHomeworkName = '「' + category + '」' + homeworkName.replace(keyword, '【' + keyword + '】');
@@ -344,6 +315,9 @@
     document.getElementById('cancel-btn').addEventListener('click', function() {
       document.getElementById('confirm-modal').style.display = 'none';
     });
+
+    // 頁面載入時初始化
+    document.addEventListener('DOMContentLoaded', loadClassesAndData);
   </script>
 </body>
 </html>

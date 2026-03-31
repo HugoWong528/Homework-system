@@ -108,6 +108,61 @@
         .links a:hover::after {
             opacity: 1;
         }
+        /* 動作按鈕（與連結卡片相同外觀） */
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            border: none;
+            color: #333;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 150px;
+            position: relative;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        .action-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.2);
+        }
+        .action-btn img {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 10px;
+            transition: transform 0.3s ease;
+        }
+        .action-btn:hover img {
+            transform: scale(1.15);
+        }
+        .action-btn span {
+            text-align: center;
+            word-break: break-word;
+        }
+        .action-btn::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4682B4;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .action-btn:hover::after {
+            opacity: 1;
+        }
         .light-blue-icon {
             filter: invert(45%) sepia(97%) saturate(302%) hue-rotate(180deg) brightness(94%) contrast(85%);
         }
@@ -152,7 +207,7 @@
                     <img src="https://img.icons8.com/ios-filled/50/000000/book.png" alt="繳交記錄" class="dark-blue-icon">
                     <span>繳交紀錄</span>
                 </a>
-                <a href="?page=homework" target="_blank" rel="noopener" data-tooltip="B1課業名稱（「寫作（長文）」解開【心結】）/ B2截止繳交日期及時間（2025-04-25 23:59）">
+                <a href="?page=homework" target="_blank" rel="noopener" data-tooltip="透過面板佈置課業，自動寫入試算表">
                     <img src="https://img.icons8.com/ios-filled/50/000000/gear.png" alt="設置" class="dark-blue-icon">
                     <span>課業設置</span>
                 </a>
@@ -165,16 +220,46 @@
                     <img src="https://img.icons8.com/ios-filled/50/000000/settings.png" alt="班別及學生管理" class="teal-icon">
                     <span>班別及學生管理</span>
                 </a>
-                <a href="<?= folderUrls.SUBMISSION_SHEET_URL ?>" target="_blank" rel="noopener" data-tooltip="直接開啟繳交紀錄試算表（進階用途）">
+                <button class="action-btn teal-icon-btn" id="btn-create-folders" data-tooltip="依課業設置建立文件夾結構並更新繳交狀態" onclick="triggerAction('triggerFolderCreation', '正在建立文件夾…', '文件夾已建立並更新繳交狀態！', 'btn-create-folders')">
                     <img src="https://img.icons8.com/ios-filled/50/000000/add-user-male.png" alt="批量建立" class="teal-icon">
                     <span>批量建立資料夾</span>
-                </a>
-                <a href="<?= folderUrls.SHARE_SHEET_URL ?>" target="_blank" rel="noopener" data-tooltip="輸入姓名及學號後，共用專屬文件夾並獲取位址">
+                </button>
+                <button class="action-btn" id="btn-share-folders" data-tooltip="依學生帳號設置共用專屬文件夾並收集位址" onclick="triggerAction('triggerShareAll', '正在共用文件夾…', '文件夾已共用並收集位址！', 'btn-share-folders')">
                     <img src="https://img.icons8.com/ios-filled/50/000000/share.png" alt="自動共用" class="teal-icon">
                     <span>自動共用專屬文件夾</span>
-                </a>
+                </button>
             </div>
         </section>
     </div>
+  <script>
+  /**
+   * 呼叫伺服器端函數並顯示進度/結果回饋。
+   * @param {string} fnName   伺服器端函數名稱
+   * @param {string} loading  操作進行中的提示文字
+   * @param {string} success  成功後的提示文字
+   * @param {string} btnId    按鈕的 element id（用於暫時停用）
+   */
+  function triggerAction(fnName, loading, success, btnId) {
+    var btn = document.getElementById(btnId);
+    var spanElement = btn.querySelector('span');
+    if (!spanElement) return;
+    var originalText = spanElement.textContent;
+    btn.disabled = true;
+    spanElement.textContent = loading;
+
+    google.script.run
+      .withSuccessHandler(function() {
+        btn.disabled = false;
+        spanElement.textContent = originalText;
+        alert(success);
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        spanElement.textContent = originalText;
+        alert('操作失敗：' + err.message);
+      })
+      [fnName]();
+  }
+  </script>
 </body>
 </html>
