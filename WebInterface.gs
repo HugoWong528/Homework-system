@@ -5,45 +5,13 @@
  * 部署：以 Web App 方式部署（Deploy → New deployment → Web app）。
  *
  * 頁面：
- *   /         → Index.html  控制面板
- *   ?page=record   → record.html 繳交紀錄
+ *   /              → Index.html    控制面板
+ *   ?page=record   → record.html   繳交紀錄
  *   ?page=homework → homework.html 佈置課業
+ *   ?page=setup    → setup.html    班別及學生管理
+ *
+ * 注意：ROOT_FOLDER_ID、getConfig() 及 getOrCreateFolder() 定義於 Shared.gs。
  */
-
-// ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 從 Script Properties 讀取設定，若尚未設定則自動從根文件夾探索並儲存。
- */
-function getConfig() {
-  const props = PropertiesService.getScriptProperties();
-  let config = props.getProperties();
-
-  if (!config.PENDING_FOLDER_ID || !config.SUBMISSION_SHEET_ID) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
-    config.UPLOAD_FOLDER_ID         = getOrCreateFolder(root, '01_學生上傳區').getId();
-    config.PENDING_FOLDER_ID        = getOrCreateFolder(root, '02_待批改課業').getId();
-    config.TEACHER_RETURN_FOLDER_ID = getOrCreateFolder(root, '03_老師回饋區').getId();
-    config.RETURNED_FOLDER_ID       = getOrCreateFolder(root, '04_已發還課業').getId();
-
-    const shareIter = root.getFilesByName('自動共用、收集位址');
-    config.SHARE_SHEET_ID = shareIter.hasNext() ? shareIter.next().getId() : '';
-
-    const subIter = root.getFilesByName('繳交紀錄及課業佈置');
-    if (subIter.hasNext()) {
-      config.SUBMISSION_SHEET_ID = subIter.next().getId();
-    } else {
-      throw new Error('找不到「繳交紀錄及課業佈置」試算表，請先執行 setup/Setup.gs 中的 setup()。');
-    }
-
-    props.setProperties(config);
-    Logger.log('✅ 已自動探索並儲存資源 ID。');
-  }
-
-  return config;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Web App 入口
@@ -61,6 +29,11 @@ function doGet(e) {
   if (page === 'homework') {
     const template = HtmlService.createTemplateFromFile('homework');
     return template.evaluate().setTitle('布置課業');
+  }
+
+  if (page === 'setup') {
+    const template = HtmlService.createTemplateFromFile('setup');
+    return template.evaluate().setTitle('班別及學生管理');
   }
 
   // 預設：控制面板
@@ -134,26 +107,14 @@ function getSpreadsheetData() {
 function updateSpreadsheet(className, homeworkName, deadline) {
   const config = getConfig();
   const spreadsheet = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
-  const sheets = spreadsheet.getSheets();
 
-  const sheet = sheets.find(function(s) {
+  const sheet = spreadsheet.getSheets().find(function(s) {
     return s.getRange('A1').getValue().toString().trim() === className;
   });
   if (!sheet) throw new Error('找不到指定的班別：' + className);
 
-  // 找到下一個可用欄位
-  const row1Values = sheet.getRange(1, 1, 1, sheet.getMaxColumns()).getValues()[0];
-  let nextColumn = 2;
-  for (let col = 1; col < row1Values.length; col++) {
-    if (!row1Values[col]) {
-      nextColumn = col + 1;
-      break;
-    }
-    if (col === row1Values.length - 1) {
-      nextColumn = row1Values.length + 1;
-    }
-  }
-
+  // 找到下一個可用欄位（欄 A 為班別名稱，課業從欄 B 起）
+  const nextColumn = Math.max(2, sheet.getLastColumn() + 1);
   sheet.getRange(1, nextColumn).setValue(homeworkName);
   sheet.getRange(2, nextColumn).setValue(deadline);
 }
@@ -214,14 +175,124 @@ function getClassData() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 輔助函數
+// 設置面板後端函數
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * 在 parent 文件夾下取得或建立名為 name 的子文件夾（冪等）。
+ * 獲取設置面板所需的所有資料。
+ * @returns {{ submissionClasses: Array, shareClasses: Array }}
  */
-function getOrCreateFolder(parent, name) {
-  const iter = parent.getFoldersByName(name);
-  if (iter.hasNext()) return iter.next();
-  return parent.createFolder(name);
+function getSetupData() {
+  const config = getConfig();
+  const submissionSS = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+
+  const submissionClasses = submissionSS.getSheets().map(function(sheet) {
+    const className = sheet.getRange('A1').getValue().toString().trim();
+    if (!className) return null;
+    const lastRow = sheet.getLastRow();
+    const students = lastRow >= 4
+      ? sheet.getRange('A4:A' + lastRow).getValues().flat().filter(String)
+      : [];
+    return { name: className, students: students };
+  }).filter(Boolean);
+
+  const shareClasses = [];
+  if (config.SHARE_SHEET_ID) {
+    const shareSS = SpreadsheetApp.openById(config.SHARE_SHEET_ID);
+    shareSS.getSheets().forEach(function(sheet) {
+      const sheetName = sheet.getName();
+      const lastRow = sheet.getLastRow();
+      const students = [];
+      if (lastRow >= 2) {
+        sheet.getRange('A2:C' + lastRow).getValues().forEach(function(row) {
+          if (row[0] || row[1]) {
+            students.push({ id: row[0].toString(), name: row[1].toString(), url: row[2].toString() });
+          }
+        });
+      }
+      shareClasses.push({ name: sheetName, students: students });
+    });
+  }
+
+  return { submissionClasses: submissionClasses, shareClasses: shareClasses };
+}
+
+/**
+ * 新增班別至繳交紀錄試算表。
+ * @param {string} className 班別名稱（如 1C）
+ */
+function addClass(className) {
+  className = className.toString().trim();
+  if (!className) throw new Error('班別名稱不可為空');
+
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+
+  const existing = ss.getSheets().some(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (existing) throw new Error('班別「' + className + '」已存在');
+
+  const sheet = ss.insertSheet(className);
+  sheet.getRange('A1').setValue(className);
+}
+
+/**
+ * 設定某班別的學生名單（覆蓋 A4 以下的現有名單）。
+ * @param {string} className 班別名稱
+ * @param {string} studentsText 學生姓名（每行一個）
+ */
+function setClassStudents(className, studentsText) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) throw new Error('找不到班別：' + className);
+
+  const names = studentsText.toString().split('\n')
+    .map(function(n) { return n.trim(); })
+    .filter(Boolean);
+
+  // 清除現有學生名單（A4 以下）
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 4) {
+    sheet.getRange('A4:A' + lastRow).clearContent();
+  }
+
+  if (names.length > 0) {
+    sheet.getRange(4, 1, names.length, 1).setValues(names.map(function(n) { return [n]; }));
+  }
+}
+
+/**
+ * 設定共用試算表中某班別的學生帳號資料（覆蓋現有資料）。
+ * @param {string} className 班別名稱
+ * @param {string} studentsJson JSON 字串，格式：[{id, name}, ...]
+ */
+function setShareStudents(className, studentsJson) {
+  const config = getConfig();
+  if (!config.SHARE_SHEET_ID) throw new Error('找不到「自動共用、收集位址」試算表，請先執行 setup()。');
+
+  const ss = SpreadsheetApp.openById(config.SHARE_SHEET_ID);
+  let sheet = ss.getSheetByName(className);
+  if (!sheet) {
+    sheet = ss.insertSheet(className);
+    sheet.getRange('A1:C1').setValues([['學號', '姓名', '文件夾位址']]);
+    sheet.getRange('A1:C1').setFontWeight('bold');
+  }
+
+  const students = JSON.parse(studentsJson);
+
+  // 清除現有資料（第 2 行以下）
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    sheet.getRange(2, 1, lastRow - 1, 3).clearContent();
+  }
+
+  if (students.length > 0) {
+    const rows = students.map(function(s) { return [s.id || '', s.name || '', '']; });
+    sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+  }
 }

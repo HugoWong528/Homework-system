@@ -193,41 +193,46 @@
   <script>
     // 載入班別選項並初始化頁面
     function loadClassesAndData() {
-      google.script.run.withSuccessHandler(function(data) {
-        const classSelect = document.getElementById('class-select');
-        classSelect.innerHTML = '';
-        data.classes.forEach(function(cls) {
-          const option = document.createElement('option');
-          option.value = cls;
-          option.textContent = cls;
-          classSelect.appendChild(option);
-        });
-        if (data.classes.length > 0) {
-          loadHomeworkData(data.classes[0]);
-        }
-      }).getSpreadsheetData();
+      google.script.run
+        .withSuccessHandler(function(data) {
+          const classSelect = document.getElementById('class-select');
+          classSelect.innerHTML = '';
+          data.classes.forEach(function(cls) {
+            const option = document.createElement('option');
+            option.value = cls;
+            option.textContent = cls;
+            classSelect.appendChild(option);
+          });
+          if (data.classes.length > 0) {
+            loadHomeworkList(data.homeworks, data.classes[0]);
+          }
+        })
+        .withFailureHandler(function(err) {
+          alert('載入失敗：' + err.message);
+        })
+        .getSpreadsheetData();
     }
 
-    // 根據選中的班別載入課業資料
-    function loadHomeworkData(className) {
-      google.script.run.withSuccessHandler(function(data) {
-        const homeworkList = document.getElementById('homework-list');
-        homeworkList.innerHTML = '<h3>現有課業</h3>';
-        const classData = data.homeworks[className] || { names: [], deadlines: [] };
-        classData.names.forEach(function(name, index) {
-          const deadline = classData.deadlines[index] || '未設定';
-          const div = document.createElement('div');
-          div.className = 'homework-item';
-          div.textContent = name + ' - 截止日期：' + deadline;
-          homeworkList.appendChild(div);
-        });
-      }).getSpreadsheetData();
+    // 根據選中的班別顯示課業資料
+    function loadHomeworkList(homeworks, className) {
+      const homeworkList = document.getElementById('homework-list');
+      homeworkList.innerHTML = '<h3>現有課業</h3>';
+      const classData = (homeworks && homeworks[className]) || { names: [], deadlines: [] };
+      classData.names.forEach(function(name, index) {
+        const deadline = classData.deadlines[index] || '未設定';
+        const div = document.createElement('div');
+        div.className = 'homework-item';
+        div.textContent = name + ' - 截止日期：' + deadline;
+        homeworkList.appendChild(div);
+      });
     }
-
-    window.onload = loadClassesAndData;
 
     document.getElementById('class-select').addEventListener('change', function() {
-      loadHomeworkData(this.value);
+      const selectedClass = this.value;
+      google.script.run
+        .withSuccessHandler(function(data) { loadHomeworkList(data.homeworks, selectedClass); })
+        .withFailureHandler(function(err) { alert('載入失敗：' + err.message); })
+        .getSpreadsheetData();
     });
 
     // 截止日期輸入格式化
@@ -311,15 +316,28 @@
 
       // 格式化課業名稱：「寫作（長文）」藏在泥土的【寶物】
       const finalHomeworkName = '「' + category + '」' + homeworkName.replace(keyword, '【' + keyword + '】');
+      const savedClass    = className;
+      const savedDeadline = deadline;
 
-      google.script.run.withSuccessHandler(function() {
-        alert('課業已成功添加');
-        document.getElementById('homework-name').value = '';
-        document.getElementById('keyword').value = '';
-        document.getElementById('deadline').value = '';
-        loadHomeworkData(className);
-        document.getElementById('confirm-modal').style.display = 'none';
-      }).updateSpreadsheet(className, finalHomeworkName, deadline);
+      google.script.run
+        .withSuccessHandler(function() {
+          alert('課業已成功添加');
+          // 直接在本地追加新課業，無需再次呼叫伺服器
+          const homeworkList = document.getElementById('homework-list');
+          const div = document.createElement('div');
+          div.className = 'homework-item';
+          div.textContent = finalHomeworkName + ' - 截止日期：' + savedDeadline;
+          homeworkList.appendChild(div);
+          document.getElementById('homework-name').value = '';
+          document.getElementById('keyword').value = '';
+          document.getElementById('deadline').value = '';
+          document.getElementById('confirm-modal').style.display = 'none';
+        })
+        .withFailureHandler(function(err) {
+          alert('提交失敗：' + err.message);
+          document.getElementById('confirm-modal').style.display = 'none';
+        })
+        .updateSpreadsheet(savedClass, finalHomeworkName, savedDeadline);
     });
 
     // 取消按鈕

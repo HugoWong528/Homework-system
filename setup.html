@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>班別及學生管理</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Serif TC', serif;
+      background-image: url('https://i.ibb.co/ns80T5pr/4-5.png');
+      background-size: cover;
+      background-attachment: fixed;
+      background-position: center;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      color: #f0f0f0;
+    }
+    .header {
+      text-align: center;
+      padding: 20px;
+      background: rgba(51, 51, 51, 0.95);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .header h1 {
+      font-size: 36px;
+      color: #2471a3;
+      margin: 0 0 8px;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+    .header a {
+      color: #87CEEB;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .header a:hover { text-decoration: underline; }
+    .main-content {
+      flex: 1;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #4682B4;
+    }
+    .tab-btn {
+      padding: 10px 28px;
+      background: rgba(51, 51, 51, 0.7);
+      color: #aaa;
+      border: none;
+      border-bottom: none;
+      font-size: 16px;
+      font-family: 'Noto Serif TC', serif;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      transition: background 0.2s, color 0.2s;
+    }
+    .tab-btn.active {
+      background: #4682B4;
+      color: #fff;
+      font-weight: 700;
+    }
+    .tab-btn:hover:not(.active) { background: rgba(70, 130, 180, 0.4); color: #fff; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .card {
+      background: rgba(51, 51, 51, 0.9);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      font-size: 22px;
+      color: #87CEEB;
+      margin: 0 0 18px;
+      border-bottom: 2px solid #4682B4;
+      padding-bottom: 10px;
+    }
+    label {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 6px;
+      color: #ddd;
+    }
+    input[type="text"], select, textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #555;
+      border-radius: 6px;
+      font-size: 15px;
+      background: #444;
+      color: #f0f0f0;
+      box-sizing: border-box;
+      font-family: 'Noto Serif TC', serif;
+      margin-bottom: 14px;
+    }
+    textarea { resize: vertical; min-height: 120px; }
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: 'Noto Serif TC', serif;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn:hover { transform: scale(1.03); }
+    .btn-primary { background: #4682B4; color: #fff; }
+    .btn-primary:hover { background: #3670a1; }
+    .btn-success { background: #4CAF50; color: #fff; }
+    .btn-success:hover { background: #45a049; }
+    .btn-danger  { background: #e05252; color: #fff; }
+    .btn-danger:hover  { background: #c94444; }
+    .btn-sm { padding: 6px 16px; font-size: 13px; }
+    .class-list { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .class-chip {
+      padding: 6px 16px;
+      background: rgba(70, 130, 180, 0.5);
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .class-chip.selected { border-color: #87CEEB; background: rgba(70, 130, 180, 0.9); }
+    .student-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .student-table th, .student-table td {
+      padding: 8px 12px;
+      border: 1px solid #555;
+      font-size: 14px;
+      text-align: left;
+    }
+    .student-table th { background: #4682B4; color: #fff; }
+    .student-table td { background: rgba(68, 68, 68, 0.4); }
+    .student-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
+    .student-row input { margin-bottom: 0; flex: 1; }
+    .status-msg {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+    }
+    .status-msg.success { background: rgba(76, 175, 80, 0.3); border: 1px solid #4CAF50; display: block; }
+    .status-msg.error   { background: rgba(224, 82, 82, 0.3); border: 1px solid #e05252; display: block; }
+    .inline-row { display: flex; gap: 10px; align-items: flex-end; }
+    .inline-row > * { margin-bottom: 0; }
+    .inline-row input { flex: 1; }
+    .hint { font-size: 13px; color: #aaa; margin-top: -10px; margin-bottom: 14px; }
+    #loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999; color: #fff; font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-overlay">載入中…</div>
+
+  <div class="header">
+    <h1>班別及學生管理</h1>
+    <a href="?">← 返回控制面板</a>
+  </div>
+
+  <div class="main-content">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="submission">繳交紀錄管理</button>
+      <button class="tab-btn" data-tab="share">學生帳號管理</button>
+    </div>
+
+    <!-- ═══════════════ TAB 1: 繳交紀錄管理 ═══════════════ -->
+    <div id="tab-submission" class="tab-panel active">
+
+      <!-- 新增班別 -->
+      <div class="card">
+        <h2>新增班別</h2>
+        <label for="new-class-name">班別名稱（例如 2A）</label>
+        <div class="inline-row">
+          <input type="text" id="new-class-name" placeholder="2A">
+          <button class="btn btn-success" onclick="addNewClass()">新增</button>
+        </div>
+        <div id="add-class-status" class="status-msg"></div>
+      </div>
+
+      <!-- 學生名單管理 -->
+      <div class="card">
+        <h2>學生名單</h2>
+        <p style="color:#aaa; font-size:14px;">選擇一個班別後，可新增或更新學生姓名。</p>
+        <label>選擇班別：</label>
+        <div class="class-list" id="submission-class-chips">
+          <span style="color:#888; font-size:14px;">載入中…</span>
+        </div>
+        <div id="submission-student-editor" style="display:none;">
+          <label id="submission-editor-label">學生姓名（每行一個）：</label>
+          <textarea id="submission-students-text" placeholder="陳大文&#10;李小明&#10;黃志明"></textarea>
+          <p class="hint">每行輸入一個學生姓名。儲存後將覆蓋該班別的現有名單。</p>
+          <button class="btn btn-success" onclick="saveClassStudents()">儲存名單</button>
+          <div id="save-students-status" class="status-msg"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════ TAB 2: 學生帳號管理 ═══════════════ -->
+    <div id="tab-share" class="tab-panel">
+      <div class="card">
+        <h2>學生帳號（共用文件夾用）</h2>
+        <p style="color:#aaa; font-size:14px;">
+          輸入每位學生的學號及姓名，用於自動共用文件夾及發送 Teams 通知。<br>
+          儲存後，可在控制面板執行「自動共用專屬文件夾」。
+        </p>
+        <label>選擇班別：</label>
+        <div class="class-list" id="share-class-chips">
+          <span style="color:#888; font-size:14px;">載入中…</span>
+        </div>
+        <div id="share-student-editor" style="display:none;">
+          <label id="share-editor-label">學生帳號（學號 / 姓名）：</label>
+          <div id="share-rows-container"></div>
+          <button class="btn btn-primary btn-sm" onclick="addShareRow()" style="margin-bottom:14px;">＋ 新增一行</button>
+          <br>
+          <button class="btn btn-success" onclick="saveShareStudents()">儲存帳號</button>
+          <div id="save-share-status" class="status-msg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─── 狀態 ───────────────────────────────────────────────────────────────────
+    var setupData = null;
+    var selectedSubmissionClass = null;
+    var selectedShareClass = null;
+
+    // ─── 初始化 ─────────────────────────────────────────────────────────────────
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          setupData = data;
+          renderSubmissionClasses();
+          renderShareClasses();
+          document.getElementById('loading-overlay').style.display = 'none';
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('loading-overlay').textContent = '載入失敗：' + err.message;
+        })
+        .getSetupData();
+    };
+
+    // ─── 分頁切換 ───────────────────────────────────────────────────────────────
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    // ─── TAB 1：繳交紀錄管理 ────────────────────────────────────────────────────
+    function renderSubmissionClasses() {
+      var container = document.getElementById('submission-class-chips');
+      container.innerHTML = '';
+      if (!setupData.submissionClasses.length) {
+        container.innerHTML = '<span style="color:#888;font-size:14px;">尚未建立任何班別</span>';
+        return;
+      }
+      setupData.submissionClasses.forEach(function(cls) {
+        var chip = document.createElement('div');
+        chip.className = 'class-chip';
+        chip.textContent = cls.name;
+        chip.addEventListener('click', function() {
+          document.querySelectorAll('#submission-class-chips .class-chip')
+            .forEach(function(c) { c.classList.remove('selected'); });
+          chip.classList.add('selected');
+          selectedSubmissionClass = cls.name;
+          showSubmissionEditor(cls);
+        });
+        container.appendChild(chip);
+      });
+    }
+
+    function showSubmissionEditor(cls) {
+      document.getElementById('submission-editor-label').textContent =
+        '「' + cls.name + '」學生姓名（每行一個）：';
+      document.getElementById('submission-students-text').value = cls.students.join('\n');
+      document.getElementById('submission-student-editor').style.display = 'block';
+      showStatus('save-students-status', '', '');
+    }
+
+    function addNewClass() {
+      var name = document.getElementById('new-class-name').value.trim();
+      if (!name) { showStatus('add-class-status', '請輸入班別名稱', 'error'); return; }
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          setupData.submissionClasses.push({ name: name, students: [] });
+          renderSubmissionClasses();
+          document.getElementById('new-class-name').value = '';
+          showStatus('add-class-status', '班別「' + name + '」已新增', 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('add-class-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .addClass(name);
+    }
+
+    function saveClassStudents() {
+      if (!selectedSubmissionClass) return;
+      var text = document.getElementById('submission-students-text').value;
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          var names = text.split('\n').map(function(n) { return n.trim(); }).filter(Boolean);
+          var cls = setupData.submissionClasses.find(function(c) { return c.name === selectedSubmissionClass; });
+          if (cls) cls.students = names;
+          showStatus('save-students-status', '已儲存', 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('save-students-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .setClassStudents(selectedSubmissionClass, text);
+    }
+
+    // ─── TAB 2：學生帳號管理 ────────────────────────────────────────────────────
+    function renderShareClasses() {
+      var container = document.getElementById('share-class-chips');
+      container.innerHTML = '';
+
+      // 合併兩個試算表的班別清單（讓老師能選擇繳交紀錄裡的班別新增帳號）
+      var classNames = {};
+      setupData.submissionClasses.forEach(function(c) { classNames[c.name] = true; });
+      setupData.shareClasses.forEach(function(c) { classNames[c.name] = true; });
+      var names = Object.keys(classNames);
+
+      if (!names.length) {
+        container.innerHTML = '<span style="color:#888;font-size:14px;">尚未建立任何班別</span>';
+        return;
+      }
+      names.forEach(function(name) {
+        var chip = document.createElement('div');
+        chip.className = 'class-chip';
+        chip.textContent = name;
+        chip.addEventListener('click', function() {
+          document.querySelectorAll('#share-class-chips .class-chip')
+            .forEach(function(c) { c.classList.remove('selected'); });
+          chip.classList.add('selected');
+          selectedShareClass = name;
+          showShareEditor(name);
+        });
+        container.appendChild(chip);
+      });
+    }
+
+    function showShareEditor(className) {
+      document.getElementById('share-editor-label').textContent =
+        '「' + className + '」學生帳號（學號 / 姓名）：';
+      var existing = setupData.shareClasses.find(function(c) { return c.name === className; });
+      var students = existing ? existing.students : [];
+
+      var container = document.getElementById('share-rows-container');
+      container.innerHTML = '';
+      if (students.length) {
+        students.forEach(function(s) { addShareRow(s.id, s.name); });
+      } else {
+        addShareRow();
+      }
+      document.getElementById('share-student-editor').style.display = 'block';
+      showStatus('save-share-status', '', '');
+    }
+
+    function addShareRow(id, name) {
+      var container = document.getElementById('share-rows-container');
+      var row = document.createElement('div');
+      row.className = 'student-row';
+      row.innerHTML =
+        '<input type="text" placeholder="學號" value="' + (id || '') + '">' +
+        '<input type="text" placeholder="姓名" value="' + (name || '') + '">' +
+        '<button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">✕</button>';
+      container.appendChild(row);
+    }
+
+    function saveShareStudents() {
+      if (!selectedShareClass) return;
+      var rows = document.getElementById('share-rows-container').querySelectorAll('.student-row');
+      var students = [];
+      rows.forEach(function(row) {
+        var inputs = row.querySelectorAll('input');
+        var id = inputs[0].value.trim();
+        var name = inputs[1].value.trim();
+        if (id || name) students.push({ id: id, name: name });
+      });
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          var cls = setupData.shareClasses.find(function(c) { return c.name === selectedShareClass; });
+          if (cls) {
+            cls.students = students.map(function(s) { return { id: s.id, name: s.name, url: '' }; });
+          } else {
+            var newStudents = students.map(function(s) { return { id: s.id, name: s.name, url: '' }; });
+            setupData.shareClasses.push({ name: selectedShareClass, students: newStudents });
+          }
+          showStatus('save-share-status', '已儲存', 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('save-share-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .setShareStudents(selectedShareClass, JSON.stringify(students));
+    }
+
+    // ─── 工具函數 ────────────────────────────────────────────────────────────────
+    function showStatus(id, msg, type) {
+      var el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = 'status-msg ' + (type || '');
+    }
+
+    function setLoading(on) {
+      document.getElementById('loading-overlay').style.display = on ? 'flex' : 'none';
+      if (on) document.getElementById('loading-overlay').textContent = '處理中…';
+    }
+  </script>
+</body>
+</html>

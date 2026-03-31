@@ -84,12 +84,12 @@ Google Apps Script Project (single project, all files at root)
 ### Step 2 — Run the Setup Script
 
 1. Go to [script.google.com](https://script.google.com) and create a new **standalone** project named `帙雲`.
-2. In the project, create a new script file named `Setup` (`.gs` is added automatically).
-3. Paste the contents of `Setup.gs` from this repository into it.
-4. Replace `YOUR_ROOT_FOLDER_ID_HERE` with your root folder ID:
+2. In the project, add all files from this repository (one by one using the **+** button). Google Apps Script does not support subfolders — all files must be at the project root.
+3. In `Shared.gs`, replace `YOUR_ROOT_FOLDER_ID_HERE` with your root folder ID:
    ```javascript
    const ROOT_FOLDER_ID = 'your_actual_folder_id_here';
    ```
+4. Also in `Shared.gs`, update `SCHOOL_EMAIL_DOMAIN` to your school's Google email domain.
 5. Click **Run** → `setup`.
 6. Check **View → Logs**. All created folder IDs, spreadsheet IDs, and URLs will be printed — **keep this for reference**.
 
@@ -97,17 +97,18 @@ Google Apps Script Project (single project, all files at root)
 
 ### Step 3 — Add All Scripts to the Apps Script Project
 
-In the **same** `帙雲` Apps Script project, add the following files. Use the **+** button (Add a file) to create each one. Google Apps Script does not support subfolders — all files must be at the project root.
+The **main** `帙雲` project contains all files except `OverdueAssignments.gs`. All shared constants (`ROOT_FOLDER_ID`, `SCHOOL_EMAIL_DOMAIN`, etc.) and shared utilities (`getConfig()`, `getOrCreateFolder()`) are defined **once** in `Shared.gs`.
 
 **Server-side scripts (`.gs`):**
 
-| File | Description | Trigger |
+| File | Description | Trigger function |
 |---|---|---|
-| `Setup.gs` | One-time setup | Run once manually |
-| `CollectHomework.gs` | Collect & sort student homework | `createTrigger()` → every 1 min |
-| `AutoReturn.gs` | Auto-return marked homework | `createTrigger()` → every 15 min |
-| `AutoShare.gs` | Share student folders & collect URLs | No trigger (manual) |
-| `SubmissionRecord.gs` | Submission tracking & folder creation | `createTrigger()` → every 5 min |
+| `Shared.gs` | Shared constants & utilities | — |
+| `Setup.gs` | One-time setup | Run `setup()` once manually |
+| `CollectHomework.gs` | Collect & sort student homework | `createCollectTrigger()` → every 1 min |
+| `AutoReturn.gs` | Auto-return marked homework | `createReturnTrigger()` → every 15 min |
+| `AutoShare.gs` | Share student folders & collect URLs | No trigger (run `shareAllClasses()` manually) |
+| `SubmissionRecord.gs` | Submission tracking & folder creation | `createSubmissionTrigger()` → every 5 min |
 | `WebInterface.gs` | Web App backend | Web App deployment |
 
 **HTML templates (`.html`):**
@@ -117,19 +118,18 @@ In the **same** `帙雲` Apps Script project, add the following files. Use the *
 | `Index.html` | Control panel |
 | `record.html` | Submission records viewer |
 | `homework.html` | Homework assignment form |
+| `setup.html` | Class & student management panel |
 
 **For the OverdueAssignments script:**
 1. Create a **second, separate** Apps Script project named `帙雲_OverdueAssignments`.
 2. Add `OverdueAssignments.gs` (rename to `Code` in the editor).
-3. Set `ROOT_FOLDER_ID` and `STUDENT_EMAIL_DOMAIN`.
+3. Set `ROOT_FOLDER_ID` and `STUDENT_EMAIL_DOMAIN` at the top of the file.
 4. Run `createTrigger()` to set up the 1-min trigger.
 
-**For all scripts:**
-1. Set `ROOT_FOLDER_ID` at the top of each `.gs` file.
-2. For `CollectHomework`, `AutoReturn`, `SubmissionRecord`: run `createTrigger()` once.
-3. For `AutoShare`: run `shareAllClasses()` manually when needed.
-4. For `AutoShare`: also set `SCHOOL_EMAIL_DOMAIN` to your school's Google email domain.
-5. For `OverdueAssignments`: also set `STUDENT_EMAIL_DOMAIN` to your school's Teams email domain.
+**For the main project:**
+1. All configuration is in `Shared.gs` — set `ROOT_FOLDER_ID` and `SCHOOL_EMAIL_DOMAIN` there.
+2. Run `createCollectTrigger()`, `createReturnTrigger()`, and `createSubmissionTrigger()` once each.
+3. Run `shareAllClasses()` manually from `AutoShare.gs` when needed.
 
 ### Step 4 — Deploy the Web Interface
 
@@ -145,16 +145,18 @@ In the **same** `帙雲` Apps Script project, add the following files. Use the *
 
 ### 繳交紀錄及課業佈置
 
-Each **sheet tab** = one class. Add tabs manually, one per class.
+Class tabs and student lists are now managed via the **班別及學生管理** web panel (`?page=setup`). You no longer need to edit the spreadsheet directly for this.
+
+Each **sheet tab** = one class, managed automatically by the web panel.
 
 | Cell | Content |
 |---|---|
-| A1 | Class name (e.g. `1C`) |
+| A1 | Class name (e.g. `1C`) — set by web panel |
 | A2 | Leave blank initially — auto-filled with `created` after folders are built |
-| B1, C1 … | Homework name in format: `「寫作（長文）」藏在泥土的【寶物】` |
-| B2, C2 … | Deadline in format: `2025-04-29 23:59` |
+| B1, C1 … | Homework name — set via `homework.html` web panel |
+| B2, C2 … | Deadline — set via `homework.html` web panel |
 | B3, C3 … | Folder ID — **auto-filled**, do not edit |
-| A4 onwards | Student names (one per row) |
+| A4 onwards | Student names — set by web panel |
 | B4 onwards | Submission status — **auto-updated**: 已繳交 / 未繳交 / 遲交 |
 
 **Homework name format explained:**
@@ -163,13 +165,15 @@ Each **sheet tab** = one class. Add tabs manually, one per class.
 
 ### 自動共用、收集位址
 
+Student IDs and names are now managed via the **班別及學生管理** web panel (`?page=setup` → 學生帳號管理 tab). You no longer need to edit the spreadsheet directly.
+
 | Column | Content |
 |---|---|
 | A | Student ID (學號) |
 | B | Student name (姓名) |
-| C | Personal folder URL — auto-filled by `03_AutoShare` |
+| C | Personal folder URL — auto-filled by `AutoShare.gs` |
 
-After entering student IDs and names, run `shareAllClasses()` in `AutoShare.gs` to share folders and populate column C.
+After entering student IDs and names via the web panel, run `shareAllClasses()` in `AutoShare.gs` to share folders and populate column C.
 
 ---
 
@@ -180,6 +184,7 @@ After entering student IDs and names, run `shareAllClasses()` in `AutoShare.gs` 
 | (none) | `Index.html` | Control panel with links to all folders and tools |
 | `?page=record` | `record.html` | View colour-coded submission records by class |
 | `?page=homework` | `homework.html` | Assign new homework (updates the spreadsheet) |
+| `?page=setup` | `setup.html` | Add classes, manage student lists and student accounts |
 
 ---
 
@@ -229,16 +234,18 @@ Set up a **Scheduled cloud flow** to send Teams messages to overdue students:
 
 ```
 /
+├── Shared.gs              ← Shared constants & utilities (ROOT_FOLDER_ID, getConfig, etc.)
 ├── Setup.gs               ← One-time setup (creates Drive folders + Sheets)
 ├── CollectHomework.gs     ← Collect & sort student homework (1-min trigger)
 ├── AutoReturn.gs          ← Auto-return marked homework (15-min trigger)
 ├── AutoShare.gs           ← Share student folders & collect URLs (manual)
 ├── SubmissionRecord.gs    ← Submission tracking & folder creation (5-min trigger)
-├── WebInterface.gs        ← Web App backend (doGet, data helpers)
-├── OverdueAssignments.gs  ← Generate overdue list for Power Automate (1-min trigger)
+├── WebInterface.gs        ← Web App backend (doGet, data helpers, setup panel API)
+├── OverdueAssignments.gs  ← Generate overdue list for Power Automate (1-min trigger, separate project)
 ├── Index.html             ← Control panel (Web App page)
 ├── record.html            ← Submission records viewer (Web App page)
 ├── homework.html          ← Homework assignment form (Web App page)
+├── setup.html             ← Class & student management panel (Web App page)
 ├── Draft.md               ← Original design draft (for reference)
 └── README.md              ← This file
 ```

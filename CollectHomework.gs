@@ -5,34 +5,10 @@
  * 方法：提取檔案名稱中的班別（如 1C、4A）及子文件夾以「【】」括起的關鍵詞，並作配對。
  *
  * 觸發器：sortStudentAssignments，每 1 分鐘觸發一次。
- *         執行 createTrigger() 可自動建立觸發器。
+ *         執行 createCollectTrigger() 可自動建立觸發器。
+ *
+ * 注意：ROOT_FOLDER_ID、getConfig() 及 getOrCreateFolder() 定義於 Shared.gs。
  */
-
-// ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 從 Script Properties 讀取設定，若尚未設定則自動從根文件夾探索並儲存。
- * @returns {{UPLOAD_FOLDER_ID: string, PENDING_FOLDER_ID: string}}
- */
-function getConfig() {
-  const props = PropertiesService.getScriptProperties();
-  let config = props.getProperties();
-
-  if (!config.UPLOAD_FOLDER_ID || !config.PENDING_FOLDER_ID) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
-    config.UPLOAD_FOLDER_ID  = getOrCreateFolder(root, '01_學生上傳區').getId();
-    config.PENDING_FOLDER_ID = getOrCreateFolder(root, '02_待批改課業').getId();
-    props.setProperties({
-      UPLOAD_FOLDER_ID:  config.UPLOAD_FOLDER_ID,
-      PENDING_FOLDER_ID: config.PENDING_FOLDER_ID
-    });
-    Logger.log('✅ 已自動探索並儲存文件夾 ID。');
-  }
-
-  return config;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 主函數
@@ -155,15 +131,6 @@ function collectKeywordsRecursive(folder, keywordFolders) {
   }
 }
 
-/**
- * 在 parent 文件夾下取得或建立名為 name 的子文件夾（冪等）。
- */
-function getOrCreateFolder(parent, name) {
-  const iter = parent.getFoldersByName(name);
-  if (iter.hasNext()) return iter.next();
-  return parent.createFolder(name);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 觸發器設置
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +139,7 @@ function getOrCreateFolder(parent, name) {
  * 建立每 1 分鐘觸發一次 sortStudentAssignments 的時間觸發器。
  * 執行前會先刪除舊有的同名觸發器，避免重複。
  */
-function createTrigger() {
+function createCollectTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if (trigger.getHandlerFunction() === 'sortStudentAssignments') {
       ScriptApp.deleteTrigger(trigger);

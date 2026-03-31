@@ -5,33 +5,10 @@
  * 方法：提取檔案名稱中的【班別】、【姓名】及課業【關鍵詞】，並配對至對應的學生文件夾。
  *
  * 觸發器：distributeHomework，每 15 分鐘觸發一次。
- *         執行 createTrigger() 可自動建立觸發器。
+ *         執行 createReturnTrigger() 可自動建立觸發器。
+ *
+ * 注意：ROOT_FOLDER_ID、getConfig() 及 getOrCreateFolder() 定義於 Shared.gs。
  */
-
-// ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 從 Script Properties 讀取設定，若尚未設定則自動從根文件夾探索並儲存。
- */
-function getConfig() {
-  const props = PropertiesService.getScriptProperties();
-  let config = props.getProperties();
-
-  if (!config.TEACHER_RETURN_FOLDER_ID || !config.RETURNED_FOLDER_ID) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
-    config.TEACHER_RETURN_FOLDER_ID = getOrCreateFolder(root, '03_老師回饋區').getId();
-    config.RETURNED_FOLDER_ID       = getOrCreateFolder(root, '04_已發還課業').getId();
-    props.setProperties({
-      TEACHER_RETURN_FOLDER_ID: config.TEACHER_RETURN_FOLDER_ID,
-      RETURNED_FOLDER_ID:       config.RETURNED_FOLDER_ID
-    });
-    Logger.log('✅ 已自動探索並儲存文件夾 ID。');
-  }
-
-  return config;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 主函數
@@ -163,15 +140,6 @@ function distributeHomework() {
 // 輔助函數
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * 在 parent 文件夾下取得或建立名為 name 的子文件夾（冪等）。
- */
-function getOrCreateFolder(parent, name) {
-  const iter = parent.getFoldersByName(name);
-  if (iter.hasNext()) return iter.next();
-  return parent.createFolder(name);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 觸發器設置
 // ─────────────────────────────────────────────────────────────────────────────
@@ -179,7 +147,7 @@ function getOrCreateFolder(parent, name) {
 /**
  * 建立每 15 分鐘觸發一次 distributeHomework 的時間觸發器。
  */
-function createTrigger() {
+function createReturnTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if (trigger.getHandlerFunction() === 'distributeHomework') {
       ScriptApp.deleteTrigger(trigger);

@@ -10,45 +10,13 @@
  *
  * 觸發器：不設觸發器，手動執行。
  *
- * 試算表格式：
+ * 試算表格式（每個分頁對應一個班別）：
  *   A1=學號, B1=姓名, C1=文件夾位址
  *   A2 起：實際學號, B2 起：實際姓名, C2 起（自動填入）：文件夾 URL
+ *
+ * 注意：ROOT_FOLDER_ID、SCHOOL_EMAIL_DOMAIN、getConfig() 及 getOrCreateFolder()
+ *       定義於 Shared.gs，此處直接使用。
  */
-
-// ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
-// 學生 Google 帳號的電郵域名（學生 Drive 帳號）
-const SCHOOL_EMAIL_DOMAIN = 'ccckyc.edu.hk'; // ← 按學校實際域名修改
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 從 Script Properties 讀取設定，若尚未設定則自動從根文件夾探索並儲存。
- */
-function getConfig() {
-  const props = PropertiesService.getScriptProperties();
-  let config = props.getProperties();
-
-  if (!config.RETURNED_FOLDER_ID || !config.SHARE_SHEET_ID) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
-    config.RETURNED_FOLDER_ID = getOrCreateFolder(root, '04_已發還課業').getId();
-
-    // 搜尋試算表
-    const ssIter = root.getFilesByName('自動共用、收集位址');
-    if (ssIter.hasNext()) {
-      config.SHARE_SHEET_ID = ssIter.next().getId();
-    } else {
-      throw new Error('找不到「自動共用、收集位址」試算表，請先執行 setup/Setup.gs 中的 setup()。');
-    }
-
-    props.setProperties({
-      RETURNED_FOLDER_ID: config.RETURNED_FOLDER_ID,
-      SHARE_SHEET_ID:     config.SHARE_SHEET_ID
-    });
-    Logger.log('✅ 已自動探索並儲存資源 ID。');
-  }
-
-  return config;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 主函數
@@ -146,11 +114,3 @@ function shareFoldersForClass(className, classFolderOverride, spreadsheetOverrid
 // 輔助函數
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * 在 parent 文件夾下取得或建立名為 name 的子文件夾（冪等）。
- */
-function getOrCreateFolder(parent, name) {
-  const iter = parent.getFoldersByName(name);
-  if (iter.hasNext()) return iter.next();
-  return parent.createFolder(name);
-}

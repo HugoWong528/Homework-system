@@ -3,40 +3,13 @@
  *
  * 使用方法：
  *   1. 在 Google Drive 建立一個根文件夾（例如「帙雲」），複製其 ID。
- *   2. 將下方 ROOT_FOLDER_ID 替換為你的根文件夾 ID。
+ *   2. 將 Shared.gs 中的 ROOT_FOLDER_ID 替換為你的根文件夾 ID。
  *   3. 在 Apps Script 編輯器中執行 setup()。
  *   4. 查看執行紀錄（View → Logs），複製所有 ID 以供其他腳本使用。
+ *
+ * 注意：ROOT_FOLDER_ID、FOLDER_NAMES、SHEET_NAMES、PROP_KEYS 及 getOrCreateFolder()
+ *       定義於 Shared.gs，此處直接使用。
  */
-
-// ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** 資源名稱常數 */
-const FOLDER_NAMES = {
-  UPLOAD:         '01_學生上傳區',
-  PENDING:        '02_待批改課業',
-  TEACHER_RETURN: '03_老師回饋區',
-  RETURNED:       '04_已發還課業'
-};
-
-const SHEET_NAMES = {
-  SHARE:      '自動共用、收集位址',
-  SUBMISSION: '繳交紀錄及課業佈置',
-  OVERDUE:    'OverdueAssignments'
-};
-
-/** Script Properties 鍵名（與其他腳本共用） */
-const PROP_KEYS = {
-  ROOT_FOLDER_ID:           'ROOT_FOLDER_ID',
-  UPLOAD_FOLDER_ID:         'UPLOAD_FOLDER_ID',
-  PENDING_FOLDER_ID:        'PENDING_FOLDER_ID',
-  TEACHER_RETURN_FOLDER_ID: 'TEACHER_RETURN_FOLDER_ID',
-  RETURNED_FOLDER_ID:       'RETURNED_FOLDER_ID',
-  SHARE_SHEET_ID:           'SHARE_SHEET_ID',
-  SUBMISSION_SHEET_ID:      'SUBMISSION_SHEET_ID',
-  OVERDUE_SHEET_ID:         'OVERDUE_SHEET_ID'
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 主入口
@@ -49,7 +22,7 @@ const PROP_KEYS = {
 function setup() {
   if (ROOT_FOLDER_ID === 'YOUR_ROOT_FOLDER_ID_HERE') {
     throw new Error(
-      '❌ 請先將 ROOT_FOLDER_ID 替換為你的 Google Drive 根文件夾 ID，然後再執行 setup()。'
+      '❌ 請先將 Shared.gs 中的 ROOT_FOLDER_ID 替換為你的 Google Drive 根文件夾 ID，然後再執行 setup()。'
     );
   }
 
@@ -91,21 +64,6 @@ function setup() {
 // ─────────────────────────────────────────────────────────────────────────────
 // 輔助函數
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 在 parent 文件夾下取得或建立名為 name 的子文件夾（冪等）。
- */
-function getOrCreateFolder(parent, name) {
-  const iter = parent.getFoldersByName(name);
-  if (iter.hasNext()) {
-    const existing = iter.next();
-    Logger.log('📁 已存在文件夾：' + name + ' (' + existing.getId() + ')');
-    return existing;
-  }
-  const newFolder = parent.createFolder(name);
-  Logger.log('📁 已建立文件夾：' + name + ' (' + newFolder.getId() + ')');
-  return newFolder;
-}
 
 /**
  * 在 parent 文件夾下取得或建立名為 name 的試算表（冪等）。

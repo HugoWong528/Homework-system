@@ -15,45 +15,15 @@
  *   B4 以下 = 繳交狀態（自動更新：已繳交 / 未繳交 / 遲交）
  *
  * 觸發器：createFoldersAndUpdateSheet，每 5 分鐘觸發一次。
- *         執行 createTrigger() 可自動建立觸發器。
+ *         執行 createSubmissionTrigger() 可自動建立觸發器。
+ *
+ * 注意：ROOT_FOLDER_ID、getConfig() 及 getOrCreateFolder() 定義於 Shared.gs。
  */
 
-// ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
-// ─────────────────────────────────────────────────────────────────────────────
-
-// 全局文件夾緩存（減少 API 呼叫次數）
+// 全局文件夾緩存（減少 API 呼叫次數）。
+// 注意：在 Apps Script 中，全局變數的生命週期與單次函數執行相同，
+// 每次觸發器執行都會重建此物件，不存在跨執行週期的過時資料問題。
 const folderCache = {};
-
-/**
- * 從 Script Properties 讀取設定，若尚未設定則自動從根文件夾探索並儲存。
- */
-function getConfig() {
-  const props = PropertiesService.getScriptProperties();
-  let config = props.getProperties();
-
-  if (!config.PENDING_FOLDER_ID || !config.RETURNED_FOLDER_ID || !config.SUBMISSION_SHEET_ID) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
-    config.PENDING_FOLDER_ID  = getOrCreateFolder(root, '02_待批改課業').getId();
-    config.RETURNED_FOLDER_ID = getOrCreateFolder(root, '04_已發還課業').getId();
-
-    const ssIter = root.getFilesByName('繳交紀錄及課業佈置');
-    if (ssIter.hasNext()) {
-      config.SUBMISSION_SHEET_ID = ssIter.next().getId();
-    } else {
-      throw new Error('找不到「繳交紀錄及課業佈置」試算表，請先執行 setup/Setup.gs 中的 setup()。');
-    }
-
-    props.setProperties({
-      PENDING_FOLDER_ID:   config.PENDING_FOLDER_ID,
-      RETURNED_FOLDER_ID:  config.RETURNED_FOLDER_ID,
-      SUBMISSION_SHEET_ID: config.SUBMISSION_SHEET_ID
-    });
-    Logger.log('✅ 已自動探索並儲存資源 ID。');
-  }
-
-  return config;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 主函數
@@ -162,15 +132,6 @@ function createFolderIfNotExists(parentId, folderName) {
 }
 
 /**
- * 在 parent 文件夾下取得或建立名為 name 的子文件夾（冪等）。
- */
-function getOrCreateFolder(parent, name) {
-  const iter = parent.getFoldersByName(name);
-  if (iter.hasNext()) return iter.next();
-  return parent.createFolder(name);
-}
-
-/**
  * 批次更新試算表中的繳交狀態。
  * 比對「02_待批改課業」中對應課業文件夾的檔案與學生姓名：
  *   - 已繳交（綠色）：檔案名稱包含學生姓名且在截止日期前
@@ -252,7 +213,7 @@ function updateSubmissionStatus(sheet, studentNames, homeworkNames, deadlines) {
 /**
  * 建立每 5 分鐘觸發一次 createFoldersAndUpdateSheet 的時間觸發器。
  */
-function createTrigger() {
+function createSubmissionTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if (trigger.getHandlerFunction() === 'createFoldersAndUpdateSheet') {
       ScriptApp.deleteTrigger(trigger);
