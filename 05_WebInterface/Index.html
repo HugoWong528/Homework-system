@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>帙雲 - 控制面板</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-image: url('https://i.ibb.co/ns80T5pr/4-5.png');
+            background-size: cover;
+            background-position: center;
+            font-family: 'Noto Serif JP', 'Noto Serif TC', 'cwTeXHei';
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 10px;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 48px;
+            color: #2471a3;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            animation: float 2s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0); }
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .section h2 {
+            font-size: 24px;
+            font-family: 'Noto Serif TC', 'cwTeXHei';
+            margin-bottom: 20px;
+            color: #4682B4;
+            border-bottom: 2px solid #4682B4;
+            padding-bottom: 10px;
+        }
+        .links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .links a {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #333;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 150px;
+            position: relative;
+        }
+        .links a:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.2);
+        }
+        .links a img {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 10px;
+            transition: transform 0.3s ease;
+        }
+        .links a:hover img {
+            transform: scale(1.15);
+        }
+        .links span {
+            text-align: center;
+            word-break: break-word;
+            font-size: 14px;
+        }
+        .links a::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4682B4;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .links a:hover::after {
+            opacity: 1;
+        }
+        .light-blue-icon {
+            filter: invert(45%) sepia(97%) saturate(302%) hue-rotate(180deg) brightness(94%) contrast(85%);
+        }
+        .dark-blue-icon {
+            filter: invert(30%) hue-rotate(270deg) saturate(160%) brightness(85%) contrast(100%);
+        }
+        .teal-icon {
+            filter: invert(82%) hue-rotate(200deg) saturate(200%) brightness(90%) contrast(95%);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <h1>帙雲</h1>
+        </div>
+        <section class="section">
+            <h2>課業及回饋</h2>
+            <div class="links">
+                <a href="<?= folderUrls.UPLOAD_URL ?>" target="_blank" rel="noopener" data-tooltip="學生上傳作業的區域">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/paper-plane.png" alt="提交" class="light-blue-icon">
+                    <span>學生上傳區</span>
+                </a>
+                <a href="<?= folderUrls.PENDING_URL ?>" target="_blank" rel="noopener" data-tooltip="待老師批改的課業">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/documents.png" alt="待批改" class="light-blue-icon">
+                    <span>待批改課業</span>
+                </a>
+                <a href="<?= folderUrls.TEACHER_RETURN_URL ?>" target="_blank" rel="noopener" data-tooltip="老師上傳批改後課業的區域">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/speech-bubble.png" alt="回饋" class="light-blue-icon">
+                    <span>老師回饋區</span>
+                </a>
+                <a href="<?= folderUrls.RETURNED_URL ?>" target="_blank" rel="noopener" data-tooltip="已批改並發還的課業">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/checked.png" alt="已發還" class="light-blue-icon">
+                    <span>已發還課業</span>
+                </a>
+            </div>
+        </section>
+        <section class="section">
+            <h2>應用操作</h2>
+            <div class="links">
+                <a href="?page=record" rel="noopener" data-tooltip="查看學生的繳交記錄">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/book.png" alt="繳交記錄" class="dark-blue-icon">
+                    <span>繳交紀錄</span>
+                </a>
+                <a href="?page=homework" target="_blank" rel="noopener" data-tooltip="B1課業名稱（「寫作（長文）」解開【心結】）/ B2截止繳交日期及時間（2025-04-25 23:59）">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/gear.png" alt="設置" class="dark-blue-icon">
+                    <span>課業設置</span>
+                </a>
+            </div>
+        </section>
+        <section class="section">
+            <h2>後臺設置</h2>
+            <div class="links">
+                <a href="<?= folderUrls.SUBMISSION_SHEET_URL ?>" target="_blank" rel="noopener" data-tooltip="A1班級（1C) / A4姓名（陳大文）">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/add-user-male.png" alt="批量建立" class="teal-icon">
+                    <span>批量建立資料夾</span>
+                </a>
+                <a href="<?= folderUrls.SHARE_SHEET_URL ?>" target="_blank" rel="noopener" data-tooltip="輸入姓名及學號後，共用專屬文件夾並獲取位址">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/share.png" alt="自動共用" class="teal-icon">
+                    <span>自動共用專屬文件夾</span>
+                </a>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
