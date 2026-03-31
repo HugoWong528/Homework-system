@@ -19,27 +19,42 @@
 
 function doGet(e) {
   const page = e.parameter.page;
+  const baseUrl = ScriptApp.getService().getUrl();
 
   if (page === 'record') {
     const template = HtmlService.createTemplateFromFile('record');
     template.classData = getClassData();
+    template.baseUrl = baseUrl;
     return template.evaluate().setTitle('作業繳交紀錄查閱');
   }
 
   if (page === 'homework') {
     const template = HtmlService.createTemplateFromFile('homework');
+    template.baseUrl = baseUrl;
     return template.evaluate().setTitle('布置課業');
   }
 
   if (page === 'setup') {
     const template = HtmlService.createTemplateFromFile('setup');
+    template.baseUrl = baseUrl;
     return template.evaluate().setTitle('班別及學生管理');
   }
 
-  // 預設：控制面板
+  // 預設：控制面板（即使資料載入失敗也要讓頁面渲染，按鈕仍可使用）
+  let classData = [];
+  let folderUrls = {
+    UPLOAD_URL: '#',
+    PENDING_URL: '#',
+    TEACHER_RETURN_URL: '#',
+    RETURNED_URL: '#',
+    SHARE_SHEET_URL: '#',
+    SUBMISSION_SHEET_URL: '#'
+  };
+  try { classData = getClassData(); } catch (err) { Logger.log('getClassData 失敗：' + err.message); }
+  try { folderUrls = getFolderUrls(); } catch (err) { Logger.log('getFolderUrls 失敗：' + err.message); }
   const template = HtmlService.createTemplateFromFile('Index');
-  template.classData = getClassData();
-  template.folderUrls = getFolderUrls();
+  template.classData = classData;
+  template.folderUrls = folderUrls;
   return template.evaluate().setTitle('帙雲 - 控制面板');
 }
 
@@ -285,14 +300,22 @@ function setShareStudents(className, studentsJson) {
 
   const students = JSON.parse(studentsJson);
 
-  // 清除現有資料（第 2 行以下）
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= 2) {
-    sheet.getRange(2, 1, lastRow - 1, 3).clearContent();
+  // 讀取現有資料，保留已填入的文件夾位址（C 欄）
+  const existingUrlMap = {};
+  const existingLastRow = sheet.getLastRow();
+  if (existingLastRow >= 2) {
+    sheet.getRange(2, 1, existingLastRow - 1, 3).getValues().forEach(function(row) {
+      const key = row[0].toString() + '\x1F' + row[1].toString();
+      if (row[2]) existingUrlMap[key] = row[2].toString();
+    });
+    sheet.getRange(2, 1, existingLastRow - 1, 3).clearContent();
   }
 
   if (students.length > 0) {
-    const rows = students.map(function(s) { return [s.id || '', s.name || '', '']; });
+    const rows = students.map(function(s) {
+      const key = (s.id || '') + '\x1F' + (s.name || '');
+      return [s.id || '', s.name || '', existingUrlMap[key] || ''];
+    });
     sheet.getRange(2, 1, rows.length, 3).setValues(rows);
   }
 }

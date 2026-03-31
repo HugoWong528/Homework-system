@@ -154,7 +154,7 @@
 <body>
   <div class="header">
     <h1>布置課業</h1>
-    <a href="?">← 返回控制面板</a>
+    <a href="<?= baseUrl ?>">← 返回控制面板</a>
   </div>
   <div class="main-content">
     <div class="form-container">
@@ -173,6 +173,7 @@
 
       <label for="keyword">關鍵詞（須包含於課業名稱中）：</label>
       <input type="text" id="keyword" placeholder="例如：寶物">
+      <p class="hint">📂 學生上傳檔案時，請以「<b>班別_姓名_關鍵詞</b>」命名，例如：<b>1C_陳大文_寶物.pdf</b>。</p>
 
       <label for="deadline">截止日期和時間（香港時間）：</label>
       <input type="datetime-local" id="deadline">

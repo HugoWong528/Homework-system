@@ -78,7 +78,6 @@ function shareFoldersForClass(className, classFolderOverride, spreadsheetOverrid
     return;
   }
   const values = sheet.getRange('A2:B' + lastRow).getValues();
-  const students = values.filter(function(row) { return row[0] && row[1]; });
 
   // 建立姓名→文件夾映射
   const folderMap = {};
@@ -90,7 +89,9 @@ function shareFoldersForClass(className, classFolderOverride, spreadsheetOverrid
   }
 
   // 共用並填入 URL
-  students.forEach(function(student, index) {
+  // 使用原始陣列索引 (rowIndex) 而非過濾後的索引，確保 URL 寫入正確的列。
+  values.forEach(function(student, rowIndex) {
+    if (!student[0] || !student[1]) return; // 跳過空列
     const studentId   = student[0];
     const studentName = student[1];
     const email = studentId + '@' + SCHOOL_EMAIL_DOMAIN;
@@ -99,7 +100,7 @@ function shareFoldersForClass(className, classFolderOverride, spreadsheetOverrid
     if (folder) {
       try {
         folder.addEditor(email);
-        sheet.getRange(index + 2, 3).setValue(folder.getUrl());
+        sheet.getRange(rowIndex + 2, 3).setValue(folder.getUrl());
         Logger.log('已共用文件夾給 ' + studentName + ' (' + email + ')');
       } catch (e) {
         Logger.log('共用失敗：' + studentName + ' - ' + e.message);
