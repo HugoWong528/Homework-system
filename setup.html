@@ -182,6 +182,7 @@
       <button class="tab-btn active" data-tab="submission">繳交紀錄管理</button>
       <button class="tab-btn" data-tab="share">學生帳號管理</button>
       <button class="tab-btn" data-tab="categories">課業類別</button>
+      <button class="tab-btn" data-tab="access">存取控制</button>
       <button class="tab-btn" data-tab="sysconfig">系統設定</button>
       <button class="tab-btn" data-tab="syslog">系統日誌</button>
     </div>
@@ -286,6 +287,49 @@
         <div id="category-status" class="status-msg"></div>
       </div>
     </div>
+
+    <!-- ═══════════════ TAB 4: 存取控制 ═══════════════ -->
+    <div id="tab-access" class="tab-panel">
+
+      <!-- 教師白名單 -->
+      <div class="card">
+        <h2>教師白名單</h2>
+        <p style="color:#aaa; font-size:14px;">
+          只有白名單內的 Google 帳號可以存取教師面板（控制面板、繳交紀錄、課業設置、此管理頁面）。<br>
+          <strong style="color:#f0ad4e;">⚠️ 白名單為空時，所有登入用戶均可存取（初始設置便利）。請在完成設置後加入您的電郵。</strong>
+        </p>
+        <div id="teacher-whitelist-container" style="margin-bottom:14px;">
+          <span style="color:#888;font-size:14px;">載入中…</span>
+        </div>
+        <div class="inline-row" style="margin-bottom:10px;">
+          <input type="email" id="new-teacher-email" placeholder="teacher@school.edu.hk" style="margin-bottom:0;">
+          <button class="btn btn-success" onclick="addTeacher()">新增</button>
+        </div>
+        <div id="teacher-whitelist-status" class="status-msg"></div>
+      </div>
+
+      <!-- 學生存取控制 -->
+      <div class="card">
+        <h2>學生存取控制</h2>
+        <p style="color:#aaa; font-size:14px;">
+          學生入口（<code>?page=student</code>）的存取控制。符合以下任一條件即可進入：<br>
+          (1) 電郵域名在「允許的學生域名」清單中；或<br>
+          (2) 電郵在「特殊電郵」清單中（個別開放）。
+        </p>
+        <h3 style="color:#87CEEB;font-size:16px;margin:0 0 8px;">允許的學生電郵域名</h3>
+        <p class="hint">每行一個域名，如 <code>ccckyc.edu.hk</code>。學生電郵格式：學號@域名。</p>
+        <textarea id="student-domains-text" rows="4" placeholder="ccckyc.edu.hk&#10;s.school.edu.hk"></textarea>
+
+        <h3 style="color:#87CEEB;font-size:16px;margin:14px 0 8px;">特殊電郵（個別開放）</h3>
+        <p class="hint">每行一個完整電郵地址，用於開放不符合以上域名的特定用戶。</p>
+        <textarea id="student-emails-text" rows="4" placeholder="special@example.com&#10;guest@other.com"></textarea>
+
+        <button class="btn btn-success" onclick="saveStudentAuth()">儲存學生存取設定</button>
+        <div id="student-auth-status" class="status-msg"></div>
+      </div>
+
+    </div>
+
     <div id="tab-sysconfig" class="tab-panel">
 
       <!-- 初始設置 -->
@@ -829,7 +873,7 @@
         .clearLogs();
     }
 
-    // ─── 分頁切換（擴充：載入系統設定 / 日誌 / 類別）────────────────────────────
+    // ─── 分頁切換（擴充：載入系統設定 / 日誌 / 類別 / 存取控制）────────────────────
     document.querySelectorAll('.tab-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -839,8 +883,96 @@
         if (btn.dataset.tab === 'sysconfig')  loadSystemConfig();
         if (btn.dataset.tab === 'syslog')     loadLogs();
         if (btn.dataset.tab === 'categories') loadCategories();
+        if (btn.dataset.tab === 'access')     loadAccessControl();
       });
     });
+
+    // ─── TAB 4：存取控制 ─────────────────────────────────────────────────────────
+    function loadAccessControl() {
+      google.script.run
+        .withSuccessHandler(function(settings) {
+          renderTeacherWhitelist(settings.teacherWhitelist || []);
+          document.getElementById('student-domains-text').value =
+            (settings.studentDomains || []).join('\n');
+          document.getElementById('student-emails-text').value =
+            (settings.studentEmails || []).join('\n');
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('teacher-whitelist-container').textContent =
+            '載入失敗：' + err.message;
+        })
+        .getAccessControlSettings();
+    }
+
+    function renderTeacherWhitelist(list) {
+      var container = document.getElementById('teacher-whitelist-container');
+      container.innerHTML = '';
+      if (!list.length) {
+        container.innerHTML = '<span style="color:#f0ad4e;font-size:13px;">⚠️ 白名單為空 — 所有登入用戶均可存取教師面板</span>';
+        return;
+      }
+      list.forEach(function(email) {
+        var chip = document.createElement('div');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;padding:6px 14px;' +
+          'background:rgba(70,130,180,0.5);border-radius:20px;font-size:14px;margin:4px;';
+        chip.innerHTML = '<span>' + esc(email) + '</span>' +
+          '<button style="background:none;border:none;color:#e05252;cursor:pointer;font-size:16px;padding:0;" ' +
+          'title="移除" onclick="removeTeacher(' + JSON.stringify(email) + ')">✕</button>';
+        container.appendChild(chip);
+      });
+    }
+
+    function addTeacher() {
+      var email = document.getElementById('new-teacher-email').value.trim();
+      if (!email) { showStatus('teacher-whitelist-status', '請輸入電郵地址', 'error'); return; }
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function(list) {
+          renderTeacherWhitelist(list);
+          document.getElementById('new-teacher-email').value = '';
+          showStatus('teacher-whitelist-status', '已新增 ' + email, 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('teacher-whitelist-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .addTeacherToWhitelist(email);
+    }
+
+    function removeTeacher(email) {
+      if (!confirm('確定要移除 ' + email + ' 嗎？')) return;
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function(list) {
+          renderTeacherWhitelist(list);
+          showStatus('teacher-whitelist-status', '已移除 ' + email, 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('teacher-whitelist-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .removeTeacherFromWhitelist(email);
+    }
+
+    function saveStudentAuth() {
+      var domainsRaw = document.getElementById('student-domains-text').value;
+      var emailsRaw  = document.getElementById('student-emails-text').value;
+      var domains = domainsRaw.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+      var emails  = emailsRaw.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          showStatus('student-auth-status', '✅ 學生存取設定已儲存', 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('student-auth-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .saveStudentAuthSettings(domains, emails);
+    }
   </script>
 </body>
 </html>

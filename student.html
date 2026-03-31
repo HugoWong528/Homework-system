@@ -189,6 +189,13 @@
 
   <div class="main-content">
 
+    <!-- ── 登入狀態 ── -->
+    <div class="card" id="login-info-card" style="padding:14px 24px;">
+      <p style="margin:0;font-size:13px;color:#aaa;">
+        🔐 已登入：<strong id="login-email-display" style="color:#87CEEB;"><?= currentUserEmail ?></strong>
+      </p>
+    </div>
+
     <!-- ── 身份確認 ── -->
     <div class="card" id="identity-card">
       <h2>請先確認身份</h2>
@@ -376,7 +383,7 @@
           var fileInput = document.createElement('input');
           fileInput.type = 'file';
           fileInput.id   = 'file-input-' + hw.index;
-          fileInput.accept = '.pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
+          // 接受所有檔案格式（PDF、Office、圖片、純文字、程式碼等）
 
           var submitBtn = document.createElement('button');
           submitBtn.className = 'btn btn-success';
