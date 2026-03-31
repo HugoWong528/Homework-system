@@ -49,13 +49,15 @@ function createFoldersAndUpdateSheet() {
     // 檢查是否已建立文件夾
     const folderCreated = sheet.getRange('A2').getValue();
     if (folderCreated !== 'created') {
+      // 取得動態課業類別清單
+      const categories = getCategories();
+
       // 建立「02_待批改課業」的班別及課業文件夾
       const classFolder = createFolderIfNotExists(pendingFolderId, className);
-      const categoryFolders = {
-        '閱讀':       createFolderIfNotExists(classFolder.getId(), '閱讀'),
-        '寫作（長文）': createFolderIfNotExists(classFolder.getId(), '寫作（長文）'),
-        '寫作（實用文）': createFolderIfNotExists(classFolder.getId(), '寫作（實用文）')
-      };
+      const categoryFolders = {};
+      categories.forEach(function(cat) {
+        categoryFolders[cat] = createFolderIfNotExists(classFolder.getId(), cat);
+      });
 
       const lastColumn = sheet.getLastColumn();
       if (lastColumn >= 2) {
@@ -81,8 +83,8 @@ function createFoldersAndUpdateSheet() {
         .flat().filter(String);
       studentNames.forEach(function(student) {
         const studentFolder = createFolderIfNotExists(returnedClassFolder.getId(), '【' + student + '】');
-        ['閱讀', '寫作（長文）', '寫作（實用文）'].forEach(function(category) {
-          createFolderIfNotExists(studentFolder.getId(), category);
+        categories.forEach(function(cat) {
+          createFolderIfNotExists(studentFolder.getId(), cat);
         });
       });
 

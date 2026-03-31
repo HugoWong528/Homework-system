@@ -16,22 +16,13 @@
 
 /**
  * 將「01_學生上傳區」中的檔案，依班別及【關鍵詞】歸類至「02_待批改課業」。
- * 支援的檔案格式：PDF、JPEG、PNG、GIF、BMP、WEBP。
+ * 支援所有檔案格式（PDF、Office、圖片、純文字、程式碼等）。
  */
 function sortStudentAssignments() {
   try {
   const config = getConfig();
   const sourceFolderId = config.UPLOAD_FOLDER_ID;  // 01_學生上傳區
   const targetFolderId = config.PENDING_FOLDER_ID; // 02_待批改課業
-
-  const supportedMimeTypes = [
-    MimeType.PDF,
-    MimeType.JPEG,
-    MimeType.PNG,
-    MimeType.GIF,
-    MimeType.BMP,
-    MimeType.WEBP
-  ];
 
   // 取得目標文件夾下所有班別的文件夾結構（支援多層子文件夾）
   const classFolders = getClassFoldersRecursive(targetFolderId);
@@ -42,13 +33,6 @@ function sortStudentAssignments() {
   while (allFiles.hasNext()) {
     const file = allFiles.next();
     const fileName = file.getName();
-    const fileMimeType = file.getMimeType();
-
-    // 過濾不支援的檔案格式
-    if (!supportedMimeTypes.includes(fileMimeType)) {
-      Logger.log('跳過不支援的檔案格式: ' + fileName);
-      continue;
-    }
 
     // 提取班別資訊（配對如 1C、4A 等格式）
     const classMatch = fileName.match(/(\d+[A-Z])/);

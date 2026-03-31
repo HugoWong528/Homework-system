@@ -3,15 +3,113 @@
  *
  * 功用：建立網頁介面，連結至各文件夾，供老師查閱繳交紀錄及佈置課業。
  * 部署：以 Web App 方式部署（Deploy → New deployment → Web app）。
+ *   - Execute as: Me（以你的帳號執行）
+ *   - Who has access: Anyone with a Google Account（需登入）
  *
  * 頁面：
- *   /              → Index.html    控制面板
- *   ?page=record   → record.html   繳交紀錄
- *   ?page=homework → homework.html 佈置課業
- *   ?page=setup    → setup.html    班別及學生管理
+ *   /              → Index.html    控制面板（須在教師白名單）
+ *   ?page=record   → record.html   繳交紀錄（須在教師白名單）
+ *   ?page=homework → homework.html 佈置課業（須在教師白名單）
+ *   ?page=setup    → setup.html    班別及學生管理（須在教師白名單）
+ *   ?page=student  → student.html  學生課業入口（須通過學生驗證）
  *
  * 注意：ROOT_FOLDER_ID、getConfig() 及 getOrCreateFolder() 定義於 Shared.gs。
  */
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 存取控制輔助函數（私用）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 從 Script Properties 取得教師白名單（電郵陣列）。
+ * @returns {string[]}
+ */
+function getTeacherWhitelist_() {
+  const json = PropertiesService.getScriptProperties().getProperty('TEACHER_WHITELIST');
+  if (json) { try { return JSON.parse(json); } catch (e) {} }
+  return [];
+}
+
+/**
+ * 判斷指定電郵是否在教師白名單中。
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isTeacherAuthorized_(email) {
+  if (!email) return false;
+  const emailLower = email.toLowerCase();
+  return getTeacherWhitelist_().some(function(e) {
+    return e.toLowerCase() === emailLower;
+  });
+}
+
+/**
+ * 從 Script Properties 取得允許的學生電郵域名清單。
+ * 若未設定，回退至 SCHOOL_EMAIL_DOMAIN。
+ * @returns {string[]}
+ */
+function getAllowedStudentDomains_() {
+  const json = PropertiesService.getScriptProperties().getProperty('ALLOWED_STUDENT_DOMAINS');
+  if (json) { try { return JSON.parse(json); } catch (e) {} }
+  const domain = PropertiesService.getScriptProperties()
+    .getProperty('SCHOOL_EMAIL_DOMAIN') || SCHOOL_EMAIL_DOMAIN;
+  return [domain];
+}
+
+/**
+ * 從 Script Properties 取得允許的學生特殊電郵清單。
+ * @returns {string[]}
+ */
+function getAllowedStudentEmails_() {
+  const json = PropertiesService.getScriptProperties().getProperty('ALLOWED_STUDENT_EMAILS');
+  if (json) { try { return JSON.parse(json); } catch (e) {} }
+  return [];
+}
+
+/**
+ * 判斷指定電郵是否有權使用學生入口。
+ * 通過條件：(1) 在特殊電郵清單中，或 (2) 域名符合允許的學生域名。
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isStudentAuthorized_(email) {
+  if (!email) return false;
+  const emailLower = email.toLowerCase();
+  if (getAllowedStudentEmails_().some(function(e) {
+    return e.toLowerCase() === emailLower;
+  })) return true;
+  return getAllowedStudentDomains_().some(function(d) {
+    return emailLower.endsWith('@' + d.toLowerCase());
+  });
+}
+
+/**
+ * 建立「存取被拒絕」HTML 頁面。
+ * @param {string} userEmail  目前登入的電郵（可能為空）
+ * @param {string} roleLabel  所需角色說明文字
+ * @returns {GoogleAppsScript.HTML.HtmlOutput}
+ */
+function makeAccessDeniedPage_(userEmail, roleLabel) {
+  const emailDisplay = userEmail
+    ? '<b>' + userEmail + '</b>'
+    : '（未登入或無法取得電郵）';
+  const html =
+    '<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>存取被拒絕</title>' +
+    '<style>body{font-family:sans-serif;background:#1a1a2e;color:#f0f0f0;' +
+    'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}' +
+    '.box{background:rgba(51,51,51,0.9);border-radius:16px;padding:40px;max-width:480px;' +
+    'text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.4);}' +
+    'h1{color:#e05252;font-size:28px;margin:0 0 16px;}' +
+    'p{color:#ccc;font-size:15px;line-height:1.6;}</style></head><body>' +
+    '<div class="box"><h1>⛔ 存取被拒絕</h1>' +
+    '<p>您目前登入的帳號 ' + emailDisplay + ' 沒有存取此頁面的權限。</p>' +
+    '<p>需要「' + roleLabel + '」存取權限。</p>' +
+    '<p style="font-size:13px;color:#888;">如需協助，請聯絡系統管理員。</p>' +
+    '</div></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle('存取被拒絕');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Web App 入口
@@ -20,6 +118,28 @@
 function doGet(e) {
   const page = e.parameter.page;
   const baseUrl = ScriptApp.getService().getUrl();
+
+  // 取得目前登入使用者的電郵
+  // 需要 Web App 部署設定：「Anyone with a Google Account」（需登入）
+  const userEmail = Session.getActiveUser().getEmail();
+
+  if (page === 'student') {
+    // 學生入口：須通過學生驗證（電郵域名或特殊電郵）
+    if (!isStudentAuthorized_(userEmail)) {
+      return makeAccessDeniedPage_(userEmail, '學生（學校電郵）');
+    }
+    const template = HtmlService.createTemplateFromFile('student');
+    template.baseUrl = baseUrl;
+    template.currentUserEmail = userEmail;
+    return template.evaluate().setTitle('學生課業上傳');
+  }
+
+  // 所有其他頁面（教師面板）：須在教師白名單中
+  // 若白名單為空，允許第一個使用者通過（初始化便利性），但記錄警告
+  const whitelist = getTeacherWhitelist_();
+  if (whitelist.length > 0 && !isTeacherAuthorized_(userEmail)) {
+    return makeAccessDeniedPage_(userEmail, '教師（管理員白名單）');
+  }
 
   if (page === 'record') {
     const template = HtmlService.createTemplateFromFile('record');
@@ -94,14 +214,14 @@ function getFolderUrls() {
 
 /**
  * 獲取試算表資料（用於 homework.html 的班別選單及現有課業列表）。
- * @returns {{classes: string[], homeworks: Object}}
+ * @returns {{classes: string[], homeworks: Object, categories: string[]}}
  */
 function getSpreadsheetData() {
   const config = getConfig();
   const spreadsheet = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
   const sheets = spreadsheet.getSheets();
 
-  const data = { classes: [], homeworks: {} };
+  const data = { classes: [], homeworks: {}, categories: getCategories() };
 
   sheets.forEach(function(sheet) {
     const className = sheet.getRange('A1').getValue().toString().trim();
@@ -527,4 +647,342 @@ function getTriggerStatus() {
       source:  t.getTriggerSource().toString()
     };
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 課業類別管理函數（供 setup.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取得目前的課業類別清單。
+ * @returns {string[]}
+ */
+function getCategoriesFromPanel() {
+  return getCategories();
+}
+
+/**
+ * 新增課業類別。
+ * @param {string} categoryName 新類別名稱
+ * @returns {string[]} 更新後的類別清單
+ */
+function addCategory(categoryName) {
+  categoryName = categoryName.toString().trim();
+  if (!categoryName) throw new Error('類別名稱不可為空');
+  const cats = getCategories();
+  if (cats.indexOf(categoryName) !== -1) throw new Error('類別「' + categoryName + '」已存在');
+  cats.push(categoryName);
+  saveCategories(cats);
+  logInfo('addCategory', '已新增類別：' + categoryName);
+  return cats;
+}
+
+/**
+ * 刪除課業類別。
+ * @param {string} categoryName 要刪除的類別名稱
+ * @returns {string[]} 更新後的類別清單
+ */
+function removeCategory(categoryName) {
+  const cats = getCategories().filter(function(c) { return c !== categoryName; });
+  saveCategories(cats);
+  logInfo('removeCategory', '已刪除類別：' + categoryName);
+  return cats;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 學生入口函數（供 student.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取得學生入口頁面初始資料：所有班別名稱。
+ * @returns {{ classes: string[] }}
+ */
+function getStudentPageData() {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const classes = ss.getSheets()
+    .map(function(s) { return s.getRange('A1').getValue().toString().trim(); })
+    .filter(Boolean)
+    .filter(function(n) { return n !== '系統日誌'; });
+  return { classes: classes };
+}
+
+/**
+ * 取得指定班別的學生名單。
+ * @param {string} className 班別名稱
+ * @returns {string[]} 學生姓名清單
+ */
+function getStudentsForClass(className) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 4) return [];
+  return sheet.getRange('A4:A' + lastRow).getValues().flat().filter(String);
+}
+
+/**
+ * 取得學生的課業清單及繳交狀態。
+ * @param {string} className   班別名稱
+ * @param {string} studentName 學生姓名
+ * @returns {{ homeworks: Array<{name:string, deadline:string, submitted:boolean, late:boolean}> }}
+ */
+function getStudentHomeworkStatus(className, studentName) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) return { homeworks: [] };
+
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn < 2) return { homeworks: [] };
+
+  const headerRow   = sheet.getRange(1, 2, 1, lastColumn - 1).getValues()[0];
+  const deadlineRow = sheet.getRange(2, 2, 1, lastColumn - 1).getValues()[0];
+  const folderRow   = sheet.getRange(3, 2, 1, lastColumn - 1).getValues()[0];
+
+  const homeworks = [];
+  headerRow.forEach(function(name, i) {
+    if (!name) return;
+    const folderId = folderRow[i] ? folderRow[i].toString() : '';
+    let submitted = false;
+    let late = false;
+    if (folderId) {
+      try {
+        const files = DriveApp.getFolderById(folderId).getFiles();
+        while (files.hasNext()) {
+          const f = files.next();
+          if (f.getName().indexOf(studentName) !== -1) {
+            submitted = true;
+            const deadlineRaw = deadlineRow[i];
+            if (deadlineRaw) {
+              const deadline = (deadlineRaw instanceof Date)
+                ? deadlineRaw
+                : Utilities.parseDate(deadlineRaw.toString(), TIMEZONE, 'yyyy-MM-dd HH:mm');
+              if (f.getDateCreated() > deadline) late = true;
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        logError('getStudentHomeworkStatus', '讀取文件夾失敗：' + folderId, e.message);
+      }
+    }
+
+    let deadlineStr = '';
+    const d = deadlineRow[i];
+    if (d instanceof Date) {
+      deadlineStr = Utilities.formatDate(d, TIMEZONE, 'yyyy-MM-dd HH:mm');
+    } else if (d) {
+      deadlineStr = d.toString();
+    }
+
+    homeworks.push({
+      index:    i,
+      name:     name.toString(),
+      deadline: deadlineStr,
+      folderId: folderId,
+      submitted: submitted,
+      late:     late
+    });
+  });
+
+  return { homeworks: homeworks };
+}
+
+/**
+ * 接收學生上傳的課業檔案，以 Base64 編碼傳遞。
+ * 自動以「班別_姓名_關鍵詞.副檔名」命名並存放至對應文件夾。
+ *
+ * @param {string} className    班別名稱
+ * @param {string} studentName  學生姓名
+ * @param {number} homeworkIndex 課業欄位索引（0-based，對應 B 欄起）
+ * @param {string} originalName 原始檔案名稱（用於取得副檔名）
+ * @param {string} base64Data   Base64 編碼的檔案內容
+ * @param {string} mimeType     檔案 MIME 類型
+ * @returns {string} 成功訊息
+ */
+function uploadHomeworkFile(className, studentName, homeworkIndex, originalName, base64Data, mimeType) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) throw new Error('找不到班別：' + className);
+
+  const lastColumn = sheet.getLastColumn();
+  const colIndex = 2 + homeworkIndex;
+  if (colIndex > lastColumn) throw new Error('找不到指定課業');
+
+  const homeworkName = sheet.getRange(1, colIndex).getValue().toString();
+  const folderId     = sheet.getRange(3, colIndex).getValue().toString();
+  if (!folderId) throw new Error('課業文件夾尚未建立，請稍後再試或聯絡老師。');
+
+  // 從課業名稱提取關鍵詞（【關鍵詞】），或使用去除類別後的名稱
+  const keywordMatch = homeworkName.match(/【(.*?)】/);
+  const keyword = keywordMatch ? keywordMatch[1] : homeworkName.replace(/「.*?」/, '').trim();
+
+  // 取得原始副檔名
+  const extMatch = originalName.match(/\.([^.]+)$/);
+  const ext = extMatch ? '.' + extMatch[1] : '';
+
+  // 最終檔案名稱：班別_姓名_關鍵詞.副檔名
+  const newFileName = className + '_' + studentName + '_' + keyword + ext;
+
+  // 解碼 Base64 並建立 Blob
+  const blob = Utilities.newBlob(
+    Utilities.base64Decode(base64Data), mimeType, newFileName
+  );
+
+  const folder = DriveApp.getFolderById(folderId);
+
+  // 若已存在同名檔案，移至垃圾桶（允許重新提交）
+  const existing = folder.getFilesByName(newFileName);
+  while (existing.hasNext()) {
+    existing.next().setTrashed(true);
+  }
+
+  folder.createFile(blob);
+  logInfo('uploadHomeworkFile', className + ' ' + studentName + ' 提交：' + newFileName);
+  return '✅ 已成功提交「' + keyword + '」課業！';
+}
+
+/**
+ * 取得學生已批改課業文件夾的 URL，並確保只共用給本人。
+ * 若 studentEmail 符合學校域名，則自動將文件夾共用給該學生（檢視者）。
+ *
+ * @param {string} className    班別名稱
+ * @param {string} studentName  學生姓名
+ * @param {string} [studentEmail] 學生電郵（可選，提供則自動共用）
+ * @returns {{ url: string|null, shared: boolean }}
+ */
+function getMarkedWorkAccess(className, studentName, studentEmail) {
+  const config = getConfig();
+  const returnedFolder = DriveApp.getFolderById(config.RETURNED_FOLDER_ID);
+
+  const classIter = returnedFolder.getFoldersByName('【' + className + '】');
+  if (!classIter.hasNext()) return { url: null, shared: false };
+  const classFolder = classIter.next();
+
+  const studentIter = classFolder.getFoldersByName('【' + studentName + '】');
+  if (!studentIter.hasNext()) return { url: null, shared: false };
+  const studentFolder = studentIter.next();
+
+  let shared = false;
+  if (studentEmail) {
+    // 使用學生驗證邏輯（允許的域名或特殊電郵）
+    if (!isStudentAuthorized_(studentEmail)) {
+      throw new Error('電郵不符合允許的學生域名或特殊電郵清單，無法共用。');
+    }
+    try {
+      studentFolder.addViewer(studentEmail);
+      shared = true;
+      logInfo('getMarkedWorkAccess', '已共用文件夾給 ' + studentEmail);
+    } catch (e) {
+      logError('getMarkedWorkAccess', '共用失敗', e.message);
+    }
+  }
+
+  return { url: studentFolder.getUrl(), shared: shared };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 共用試算表純文字批量輸入（供 setup.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 以純文字格式批量輸入共用試算表的學生資料（覆蓋現有資料）。
+ * 每行格式：「學號 姓名」或「學號,姓名」（以空格、逗號或 Tab 分隔）。
+ *
+ * @param {string} className   班別名稱
+ * @param {string} plainText   純文字學生資料
+ */
+function bulkImportShareStudentsText(className, plainText) {
+  const lines = plainText.toString().split('\n');
+  const students = [];
+  lines.forEach(function(line) {
+    line = line.trim();
+    if (!line) return;
+    // 支援空格、Tab、逗號分隔
+    const parts = line.split(/[\s,，\t]+/);
+    if (parts.length >= 2) {
+      students.push({ id: parts[0].trim(), name: parts.slice(1).join(' ').trim() });
+    }
+  });
+  if (students.length === 0) throw new Error('未找到有效的學生資料，請確認格式（每行：學號 姓名）。');
+  setShareStudents(className, JSON.stringify(students));
+  return '✅ 已成功匯入 ' + students.length + ' 位學生。';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 存取控制管理函數（供 setup.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取得存取控制設定（供面板顯示）。
+ * @returns {{ teacherWhitelist: string[], studentDomains: string[], studentEmails: string[] }}
+ */
+function getAccessControlSettings() {
+  return {
+    teacherWhitelist: getTeacherWhitelist_(),
+    studentDomains:   getAllowedStudentDomains_(),
+    studentEmails:    getAllowedStudentEmails_()
+  };
+}
+
+/**
+ * 新增教師電郵至白名單。
+ * @param {string} email
+ * @returns {string[]} 更新後的白名單
+ */
+function addTeacherToWhitelist(email) {
+  email = email.toString().trim().toLowerCase();
+  if (!email || !email.includes('@')) throw new Error('請輸入有效的電郵地址');
+  const list = getTeacherWhitelist_();
+  if (list.some(function(e) { return e.toLowerCase() === email; })) {
+    throw new Error('電郵「' + email + '」已在白名單中');
+  }
+  list.push(email);
+  PropertiesService.getScriptProperties().setProperty('TEACHER_WHITELIST', JSON.stringify(list));
+  logInfo('addTeacherToWhitelist', '已新增教師：' + email);
+  return list;
+}
+
+/**
+ * 從教師白名單移除指定電郵。
+ * @param {string} email
+ * @returns {string[]} 更新後的白名單
+ */
+function removeTeacherFromWhitelist(email) {
+  const list = getTeacherWhitelist_().filter(function(e) {
+    return e.toLowerCase() !== email.toLowerCase();
+  });
+  PropertiesService.getScriptProperties().setProperty('TEACHER_WHITELIST', JSON.stringify(list));
+  logInfo('removeTeacherFromWhitelist', '已移除教師：' + email);
+  return list;
+}
+
+/**
+ * 儲存學生存取控制設定（允許的域名 + 特殊電郵）。
+ * @param {string[]} domains  允許的電郵域名陣列（如 ['ccckyc.edu.hk']）
+ * @param {string[]} emails   允許的特殊電郵陣列
+ */
+function saveStudentAuthSettings(domains, emails) {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('ALLOWED_STUDENT_DOMAINS', JSON.stringify(domains || []));
+  props.setProperty('ALLOWED_STUDENT_EMAILS',  JSON.stringify(emails  || []));
+  logInfo('saveStudentAuthSettings',
+    '已更新：域名 ' + (domains || []).length + ' 個，特殊電郵 ' + (emails || []).length + ' 個');
+}
+
+/**
+ * 取得目前登入用戶的電郵（供前端顯示，不用作授權判斷）。
+ * @returns {string}
+ */
+function getCurrentUserEmail() {
+  return Session.getActiveUser().getEmail() || '';
 }
