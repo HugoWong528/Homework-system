@@ -57,6 +57,8 @@ const PROP_KEYS = {
 /**
  * 從 Script Properties 讀取設定。
  * 若必要的 ID 尚未儲存，則自動從根文件夾探索並儲存至 Script Properties。
+ * ROOT_FOLDER_ID 優先從 Script Properties 讀取（可透過控制面板設置），
+ * 若尚未設定則回退至程式碼常數。
  * @returns {Object} 包含所有資源 ID 的設定物件
  */
 function getConfig() {
@@ -70,7 +72,16 @@ function getConfig() {
     !config.SUBMISSION_SHEET_ID;
 
   if (needsDiscovery) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
+    // 優先使用 Script Properties 中儲存的 ROOT_FOLDER_ID（透過 Web Panel 設置），
+    // 若沒有則使用程式碼常數
+    const effectiveRootId = config.ROOT_FOLDER_ID || ROOT_FOLDER_ID;
+    if (!effectiveRootId || effectiveRootId === 'YOUR_ROOT_FOLDER_ID_HERE') {
+      throw new Error(
+        '尚未設定根文件夾 ID。請透過控制面板的「系統設定」頁面輸入您的 Google Drive 根文件夾 ID 並執行初始設置，' +
+        '或直接修改 Shared.gs 中的 ROOT_FOLDER_ID 常數後執行 Setup.gs 的 setup()。'
+      );
+    }
+    const root = DriveApp.getFolderById(effectiveRootId);
 
     config.UPLOAD_FOLDER_ID         = getOrCreateFolder(root, FOLDER_NAMES.UPLOAD).getId();
     config.PENDING_FOLDER_ID        = getOrCreateFolder(root, FOLDER_NAMES.PENDING).getId();

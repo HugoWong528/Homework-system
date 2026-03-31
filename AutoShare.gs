@@ -27,6 +27,7 @@
  * 試算表中每個分頁（Sheet）對應一個班別，分頁名稱即班別名稱（如 1C）。
  */
 function shareAllClasses() {
+  try {
   const config = getConfig();
   const spreadsheet = SpreadsheetApp.openById(config.SHARE_SHEET_ID);
   const returnedFolder = DriveApp.getFolderById(config.RETURNED_FOLDER_ID);
@@ -37,7 +38,16 @@ function shareAllClasses() {
     const classFolder = classFolderIter.next();
     const classKey = classFolder.getName().replace(/【|】/g, ''); // 去除【】
     Logger.log('處理班別：' + classKey);
-    shareFoldersForClass(classKey, classFolder, spreadsheet);
+    try {
+      shareFoldersForClass(classKey, classFolder, spreadsheet);
+    } catch (e) {
+      logError('shareAllClasses', '處理班別失敗：' + classKey, e.message);
+    }
+  }
+  logInfo('shareAllClasses', '自動共用完成。');
+  } catch (e) {
+    logError('shareAllClasses', e.message);
+    throw e;
   }
 }
 
@@ -89,24 +99,27 @@ function shareFoldersForClass(className, classFolderOverride, spreadsheetOverrid
   }
 
   // 共用並填入 URL
-  // 使用原始陣列索引 (rowIndex) 而非過濾後的索引，確保 URL 寫入正確的列。
-  values.forEach(function(student, rowIndex) {
+  // 使用原始 values 陣列的索引 (valueIndex)，使試算表列號 (valueIndex + 2) 始終正確，
+  // 不受空白列影響（空白列直接 return 跳過，但不佔用 valueIndex）。
+  values.forEach(function(student, valueIndex) {
     if (!student[0] || !student[1]) return; // 跳過空列
     const studentId   = student[0];
     const studentName = student[1];
-    const email = studentId + '@' + SCHOOL_EMAIL_DOMAIN;
-    const folder = folderMap[studentName];
+    const domain      = PropertiesService.getScriptProperties()
+                          .getProperty('SCHOOL_EMAIL_DOMAIN') || SCHOOL_EMAIL_DOMAIN;
+    const email       = studentId + '@' + domain;
+    const folder      = folderMap[studentName];
 
     if (folder) {
       try {
         folder.addEditor(email);
-        sheet.getRange(rowIndex + 2, 3).setValue(folder.getUrl());
+        sheet.getRange(valueIndex + 2, 3).setValue(folder.getUrl());
         Logger.log('已共用文件夾給 ' + studentName + ' (' + email + ')');
       } catch (e) {
-        Logger.log('共用失敗：' + studentName + ' - ' + e.message);
+        logError('shareFoldersForClass', '共用失敗：' + studentName, e.message);
       }
     } else {
-      Logger.log('找不到學生文件夾：' + studentName);
+      logWarn('shareFoldersForClass', '找不到學生文件夾：' + studentName);
     }
   });
 }

@@ -27,6 +27,7 @@
  *         寫作（實用文）/
  */
 function distributeHomework() {
+  try {
   const config = getConfig();
   const uploadFolderId = config.TEACHER_RETURN_FOLDER_ID; // 03_老師回饋區
   const returnFolderId = config.RETURNED_FOLDER_ID;       // 04_已發還課業
@@ -131,8 +132,13 @@ function distributeHomework() {
     } else if (fileClassKey) {
       // 只有班別：移動到班別資料夾
       file.moveTo(classMap[fileClassKey]);
+    } else {
+      logWarn('distributeHomework', '無法匹配班別，檔案留在原地：' + fileName);
     }
-    // 完全無法匹配，留在原地
+  }
+  } catch (e) {
+    logError('distributeHomework', e.message);
+    throw e;
   }
 }
 

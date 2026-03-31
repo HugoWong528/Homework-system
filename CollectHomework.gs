@@ -19,6 +19,7 @@
  * 支援的檔案格式：PDF、JPEG、PNG、GIF、BMP、WEBP。
  */
 function sortStudentAssignments() {
+  try {
   const config = getConfig();
   const sourceFolderId = config.UPLOAD_FOLDER_ID;  // 01_學生上傳區
   const targetFolderId = config.PENDING_FOLDER_ID; // 02_待批改課業
@@ -82,8 +83,12 @@ function sortStudentAssignments() {
       file.moveTo(targetFolder);
       Logger.log('成功移動檔案: ' + fileName + ' → ' + targetFolder.getName());
     } catch (e) {
-      Logger.log('移動檔案失敗: ' + fileName + ' - ' + e.message);
+      logError('sortStudentAssignments', '移動檔案失敗: ' + fileName, e.message);
     }
+  }
+  } catch (e) {
+    logError('sortStudentAssignments', e.message);
+    throw e;
   }
 }
 

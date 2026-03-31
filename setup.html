@@ -181,6 +181,8 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="submission">繳交紀錄管理</button>
       <button class="tab-btn" data-tab="share">學生帳號管理</button>
+      <button class="tab-btn" data-tab="sysconfig">系統設定</button>
+      <button class="tab-btn" data-tab="syslog">系統日誌</button>
     </div>
 
     <!-- ═══════════════ TAB 1: 繳交紀錄管理 ═══════════════ -->
@@ -238,7 +240,83 @@
         </div>
       </div>
     </div>
-  </div>
+    <!-- ═══════════════ TAB 3: 系統設定 ═══════════════ -->
+    <div id="tab-sysconfig" class="tab-panel">
+
+      <!-- 初始設置 -->
+      <div class="card">
+        <h2>初始設置</h2>
+        <p style="color:#aaa;font-size:14px;">
+          首次使用時，請在此輸入 Google Drive 根文件夾 ID 並按「執行初始設置」。<br>
+          系統會自動建立所需的文件夾及試算表，並儲存所有設定。
+        </p>
+        <label for="cfg-root-id">Google Drive 根文件夾 ID</label>
+        <input type="text" id="cfg-root-id" placeholder="例如：1AbCdEfGhIjKlMnOpQrStUv">
+        <p class="hint">在 Google Drive 開啟您的根文件夾，複製網址列中的 ID（即 /folders/ 之後的字串）。</p>
+
+        <label for="cfg-school-domain">Google 帳號電郵域名（共用文件夾用）</label>
+        <input type="text" id="cfg-school-domain" placeholder="例如：ccckyc.edu.hk">
+        <p class="hint">學生的 Google 帳號格式：學號@此域名。</p>
+
+        <label for="cfg-teams-domain">Microsoft Teams 電郵域名（逾期提醒用）</label>
+        <input type="text" id="cfg-teams-domain" placeholder="例如：ms.ccckyc.edu.hk">
+        <p class="hint">學生收取 Teams 通知的電郵格式：學號@此域名。</p>
+
+        <button class="btn btn-success" onclick="runSetup()">▶ 執行初始設置</button>
+        &nbsp;
+        <button class="btn btn-primary" onclick="saveDomainsOnly()">💾 僅儲存域名設定</button>
+        <div id="setup-status" class="status-msg"></div>
+      </div>
+
+      <!-- 目前狀態 -->
+      <div class="card">
+        <h2>系統資源狀態</h2>
+        <div id="sys-status-table" style="color:#aaa;font-size:14px;">載入中…</div>
+      </div>
+
+      <!-- 觸發器管理 -->
+      <div class="card">
+        <h2>觸發器管理</h2>
+        <p style="color:#aaa;font-size:14px;">
+          觸發器讓腳本定時自動執行，確保功能正常運作。<br>
+          點擊「建立所有觸發器」可一鍵建立以下三個觸發器：
+        </p>
+        <ul style="color:#ccc;font-size:13px;margin-bottom:14px;padding-left:20px;">
+          <li>收集功課（每 1 分鐘）</li>
+          <li>繳交狀態更新（每 5 分鐘）</li>
+          <li>自動發還課業（每 15 分鐘）</li>
+        </ul>
+        <button class="btn btn-primary" onclick="createTriggers()">⚙ 建立所有觸發器</button>
+        <div id="trigger-status" class="status-msg"></div>
+        <div id="trigger-list" style="margin-top:14px;color:#ccc;font-size:13px;"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ TAB 4: 系統日誌 ═══════════════ -->
+    <div id="tab-syslog" class="tab-panel">
+      <div class="card">
+        <h2>系統日誌</h2>
+        <p style="color:#aaa;font-size:14px;">
+          顯示最近 100 筆錯誤及操作記錄，儲存於「繳交紀錄及課業佈置」試算表的「系統日誌」分頁。
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="loadLogs()" style="margin-bottom:14px;">🔄 重新載入</button>
+        <button class="btn btn-danger btn-sm" onclick="clearLogsConfirm()" style="margin-bottom:14px; margin-left:8px;">🗑 清除日誌</button>
+        <div id="log-table-container" style="overflow-x:auto;">
+          <table class="student-table" id="log-table">
+            <thead><tr>
+              <th style="width:160px;">時間</th>
+              <th style="width:60px;">等級</th>
+              <th style="width:160px;">來源函數</th>
+              <th>訊息</th>
+              <th>詳情</th>
+            </tr></thead>
+            <tbody id="log-tbody"><tr><td colspan="5" style="color:#888;">點擊「重新載入」查看日誌。</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end main-content -->
 
   <script>
     // ─── 狀態 ───────────────────────────────────────────────────────────────────
@@ -256,20 +334,13 @@
           document.getElementById('loading-overlay').style.display = 'none';
         })
         .withFailureHandler(function(err) {
-          document.getElementById('loading-overlay').textContent = '載入失敗：' + err.message;
+          document.getElementById('loading-overlay').innerHTML =
+            '載入失敗：' + err.message +
+            '<br><button onclick="location.reload()" style="margin-top:10px;padding:8px 16px;' +
+            'background:#4682B4;color:#fff;border:none;border-radius:6px;cursor:pointer;">重試</button>';
         })
         .getSetupData();
     };
-
-    // ─── 分頁切換 ───────────────────────────────────────────────────────────────
-    document.querySelectorAll('.tab-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-        document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
-        btn.classList.add('active');
-        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      });
-    });
 
     // ─── TAB 1：繳交紀錄管理 ────────────────────────────────────────────────────
     function renderSubmissionClasses() {
@@ -391,10 +462,26 @@
       var container = document.getElementById('share-rows-container');
       var row = document.createElement('div');
       row.className = 'student-row';
-      row.innerHTML =
-        '<input type="text" placeholder="學號" value="' + (id || '') + '">' +
-        '<input type="text" placeholder="姓名" value="' + (name || '') + '">' +
-        '<button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">✕</button>';
+
+      var idInput = document.createElement('input');
+      idInput.type = 'text';
+      idInput.placeholder = '學號';
+      idInput.value = id || '';
+
+      var nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.placeholder = '姓名';
+      nameInput.value = name || '';
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-danger btn-sm';
+      delBtn.textContent = '✕';
+      delBtn.type = 'button';
+      delBtn.addEventListener('click', function() { row.remove(); });
+
+      row.appendChild(idInput);
+      row.appendChild(nameInput);
+      row.appendChild(delBtn);
       container.appendChild(row);
     }
 
@@ -439,6 +526,185 @@
       document.getElementById('loading-overlay').style.display = on ? 'flex' : 'none';
       if (on) document.getElementById('loading-overlay').textContent = '處理中…';
     }
+
+    // ─── TAB 3：系統設定 ─────────────────────────────────────────────────────────
+    function loadSystemConfig() {
+      google.script.run
+        .withSuccessHandler(function(cfg) {
+          document.getElementById('cfg-root-id').value      = cfg.rootFolderId      || '';
+          document.getElementById('cfg-school-domain').value = cfg.schoolEmailDomain || '';
+          document.getElementById('cfg-teams-domain').value  = cfg.studentEmailDomain || '';
+          renderStatusTable(cfg);
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('sys-status-table').textContent = '載入失敗：' + err.message;
+        })
+        .getSystemConfig();
+    }
+
+    function renderStatusTable(cfg) {
+      var rows = [
+        ['01_學生上傳區',    cfg.hasUploadFolder,    cfg.uploadUrl],
+        ['02_待批改課業',    cfg.hasPendingFolder,   ''],
+        ['03_老師回饋區',    cfg.hasTeacherFolder,   ''],
+        ['04_已發還課業',    cfg.hasReturnedFolder,  ''],
+        ['自動共用試算表',   cfg.hasShareSheet,      cfg.shareSheetUrl],
+        ['繳交紀錄試算表',   cfg.hasSubmissionSheet, cfg.submissionSheetUrl],
+        ['逾期課業試算表',   cfg.hasOverdueSheet,    cfg.overdueSheetUrl]
+      ];
+      var container = document.getElementById('sys-status-table');
+      container.innerHTML = '';
+      var table  = document.createElement('table');
+      table.className = 'student-table';
+      table.innerHTML = '<thead><tr><th>資源</th><th>狀態</th><th>連結</th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      rows.forEach(function(r) {
+        var tr = document.createElement('tr');
+
+        var tdName = document.createElement('td');
+        tdName.textContent = r[0];
+
+        var tdStatus = document.createElement('td');
+        tdStatus.innerHTML = r[1]
+          ? '<span style="color:#4CAF50;">✅ 已建立</span>'
+          : '<span style="color:#e05252;">❌ 未建立</span>';
+
+        var tdLink = document.createElement('td');
+        if (r[2]) {
+          var a = document.createElement('a');
+          a.href = r[2];
+          a.target = '_blank';
+          a.style.color = '#87CEEB';
+          a.textContent = '開啟';
+          tdLink.appendChild(a);
+        } else {
+          tdLink.textContent = '—';
+        }
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdLink);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    function runSetup() {
+      var rootId  = document.getElementById('cfg-root-id').value.trim();
+      var school  = document.getElementById('cfg-school-domain').value.trim();
+      var teams   = document.getElementById('cfg-teams-domain').value.trim();
+      if (!rootId) { showStatus('setup-status', '請輸入根文件夾 ID', 'error'); return; }
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function(msg) {
+          showStatus('setup-status', msg, 'success');
+          loadSystemConfig();
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('setup-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .runInitialSetup(rootId, school, teams);
+    }
+
+    function saveDomainsOnly() {
+      var school = document.getElementById('cfg-school-domain').value.trim();
+      var teams  = document.getElementById('cfg-teams-domain').value.trim();
+      if (!school && !teams) { showStatus('setup-status', '請至少填寫一個域名', 'error'); return; }
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          showStatus('setup-status', '域名設定已儲存', 'success');
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('setup-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .saveEmailDomains(school, teams);
+    }
+
+    function createTriggers() {
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function(list) {
+          showStatus('trigger-status', '已成功建立所有觸發器', 'success');
+          var html = list.map(function(t) {
+            return '• ' + t.handler + ' (' + t.type + ')';
+          }).join('<br>');
+          document.getElementById('trigger-list').innerHTML = html || '（目前無觸發器）';
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('trigger-status', '失敗：' + err.message, 'error');
+          setLoading(false);
+        })
+        .createAllTriggersFromPanel();
+    }
+
+    // ─── TAB 4：系統日誌 ─────────────────────────────────────────────────────────
+    function esc(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function loadLogs() {
+      google.script.run
+        .withSuccessHandler(function(logs) {
+          var tbody = document.getElementById('log-tbody');
+          if (!logs.length) {
+            tbody.innerHTML = '<tr><td colspan="5" style="color:#888;">日誌為空。</td></tr>';
+            return;
+          }
+          tbody.innerHTML = logs.map(function(r) {
+            var bg = r.level === 'ERROR' ? 'rgba(224,82,82,0.2)'
+                   : r.level === 'WARN'  ? 'rgba(255,193,7,0.2)'
+                   : 'transparent';
+            return '<tr style="background:' + bg + ';">' +
+              '<td>' + esc(r.time)    + '</td>' +
+              '<td>' + esc(r.level)   + '</td>' +
+              '<td>' + esc(r.source)  + '</td>' +
+              '<td>' + esc(r.message) + '</td>' +
+              '<td>' + esc(r.detail)  + '</td>' +
+              '</tr>';
+          }).join('');
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('log-tbody').innerHTML =
+            '<tr><td colspan="5" style="color:#e05252;">載入失敗：' + esc(err.message) + '</td></tr>';
+        })
+        .getRecentLogs();
+    }
+
+    function clearLogsConfirm() {
+      if (!confirm('確定要清除所有系統日誌嗎？此操作無法復原。')) return;
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler(function() {
+          loadLogs();
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          alert('清除失敗：' + err.message);
+          setLoading(false);
+        })
+        .clearLogs();
+    }
+
+    // ─── 分頁切換（擴充：載入系統設定 / 日誌）────────────────────────────────────
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'sysconfig') loadSystemConfig();
+        if (btn.dataset.tab === 'syslog')    loadLogs();
+      });
+    });
   </script>
 </body>
 </html>
