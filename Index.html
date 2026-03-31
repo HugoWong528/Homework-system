@@ -182,7 +182,7 @@
         <section class="section">
             <h2>課業及回饋</h2>
             <div class="links">
-                <a href="<?= folderUrls.UPLOAD_URL ?>" target="_blank" rel="noopener" data-tooltip="學生上傳作業的區域">
+                <a href="<?= folderUrls.UPLOAD_URL ?>" target="_blank" rel="noopener" data-tooltip="學生上傳作業的區域&#13;命名格式：班別_姓名_關鍵詞&#13;例如：1C_陳大文_寶物.pdf">
                     <img src="https://img.icons8.com/ios-filled/50/000000/paper-plane.png" alt="提交" class="light-blue-icon">
                     <span>學生上傳區</span>
                 </a>
@@ -203,24 +203,32 @@
         <section class="section">
             <h2>應用操作</h2>
             <div class="links">
-                <a href="?page=record" rel="noopener" data-tooltip="查看學生的繳交記錄">
+                <a href="<?= baseUrl ?>?page=record" rel="noopener" data-tooltip="查看學生的繳交記錄">
                     <img src="https://img.icons8.com/ios-filled/50/000000/book.png" alt="繳交記錄" class="dark-blue-icon">
                     <span>繳交紀錄</span>
                 </a>
-                <a href="?page=homework" target="_blank" rel="noopener" data-tooltip="透過面板佈置課業，自動寫入試算表">
+                <a href="<?= baseUrl ?>?page=homework" target="_blank" rel="noopener" data-tooltip="透過面板佈置課業，自動寫入試算表">
                     <img src="https://img.icons8.com/ios-filled/50/000000/gear.png" alt="設置" class="dark-blue-icon">
                     <span>課業設置</span>
+                </a>
+                <a href="<?= folderUrls.SUBMISSION_SHEET_URL ?>" target="_blank" rel="noopener" data-tooltip="繳交紀錄及課業佈置試算表">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/google-sheets.png" alt="繳交紀錄試算表" class="dark-blue-icon">
+                    <span>繳交紀錄試算表</span>
+                </a>
+                <a href="<?= folderUrls.SHARE_SHEET_URL ?>" target="_blank" rel="noopener" data-tooltip="自動共用、收集位址試算表（查看學生文件夾位址）">
+                    <img src="https://img.icons8.com/ios-filled/50/000000/google-sheets.png" alt="共用位址試算表" class="teal-icon">
+                    <span>共用位址試算表</span>
                 </a>
             </div>
         </section>
         <section class="section">
             <h2>後臺設置</h2>
             <div class="links">
-                <a href="?page=setup" rel="noopener" data-tooltip="新增班別、管理學生名單及帳號">
+                <a href="<?= baseUrl ?>?page=setup" rel="noopener" data-tooltip="新增班別、管理學生名單及帳號、系統設定">
                     <img src="https://img.icons8.com/ios-filled/50/000000/settings.png" alt="班別及學生管理" class="teal-icon">
                     <span>班別及學生管理</span>
                 </a>
-                <button class="action-btn teal-icon-btn" id="btn-create-folders" data-tooltip="依課業設置建立文件夾結構並更新繳交狀態" onclick="triggerAction('triggerFolderCreation', '正在建立文件夾…', '文件夾已建立並更新繳交狀態！', 'btn-create-folders')">
+                <button class="action-btn" id="btn-create-folders" data-tooltip="依課業設置建立文件夾結構並更新繳交狀態" onclick="triggerAction('triggerFolderCreation', '正在建立文件夾…', '文件夾已建立並更新繳交狀態！', 'btn-create-folders')">
                     <img src="https://img.icons8.com/ios-filled/50/000000/add-user-male.png" alt="批量建立" class="teal-icon">
                     <span>批量建立資料夾</span>
                 </button>

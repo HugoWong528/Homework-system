@@ -34,6 +34,7 @@ const folderCache = {};
  * 每 5 分鐘由觸發器自動執行。
  */
 function createFoldersAndUpdateSheet() {
+  try {
   const config = getConfig();
   const spreadsheet = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
   const sheets = spreadsheet.getSheets();
@@ -100,6 +101,10 @@ function createFoldersAndUpdateSheet() {
       updateSubmissionStatus(sheet, studentNames, homeworkNames, deadlines);
     }
   });
+  } catch (e) {
+    logError('createFoldersAndUpdateSheet', e.message);
+    throw e;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

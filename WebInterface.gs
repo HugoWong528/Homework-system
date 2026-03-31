@@ -19,27 +19,54 @@
 
 function doGet(e) {
   const page = e.parameter.page;
+  const baseUrl = ScriptApp.getService().getUrl();
 
   if (page === 'record') {
     const template = HtmlService.createTemplateFromFile('record');
-    template.classData = getClassData();
+    let classData = [];
+    let loadError = '';
+    try { classData = getClassData(); } catch (err) {
+      logError('doGet[record]', err.message);
+      loadError = err.message;
+    }
+    template.classData = classData;
+    template.loadError = loadError;
+    template.baseUrl = baseUrl;
     return template.evaluate().setTitle('作業繳交紀錄查閱');
   }
 
   if (page === 'homework') {
     const template = HtmlService.createTemplateFromFile('homework');
+    template.baseUrl = baseUrl;
     return template.evaluate().setTitle('布置課業');
   }
 
   if (page === 'setup') {
     const template = HtmlService.createTemplateFromFile('setup');
+    template.baseUrl = baseUrl;
     return template.evaluate().setTitle('班別及學生管理');
   }
 
-  // 預設：控制面板
+  // 預設：控制面板（即使資料載入失敗也要讓頁面渲染，按鈕仍可使用）
+  let classData = [];
+  let folderUrls = {
+    UPLOAD_URL: '#',
+    PENDING_URL: '#',
+    TEACHER_RETURN_URL: '#',
+    RETURNED_URL: '#',
+    SHARE_SHEET_URL: '#',
+    SUBMISSION_SHEET_URL: '#'
+  };
+  try { classData = getClassData(); } catch (err) {
+    logError('doGet[index]', 'getClassData 失敗：' + err.message);
+  }
+  try { folderUrls = getFolderUrls(); } catch (err) {
+    logError('doGet[index]', 'getFolderUrls 失敗：' + err.message);
+  }
   const template = HtmlService.createTemplateFromFile('Index');
-  template.classData = getClassData();
-  template.folderUrls = getFolderUrls();
+  template.classData = classData;
+  template.folderUrls = folderUrls;
+  template.baseUrl = baseUrl;
   return template.evaluate().setTitle('帙雲 - 控制面板');
 }
 
@@ -88,8 +115,13 @@ function getSpreadsheetData() {
 
     if (lastColumn >= 2) {
       const values = sheet.getRange(1, 2, 2, lastColumn - 1).getValues();
-      homeworkNames = values[0].filter(String);
-      deadlines = values[1].map(function(d) { return d.toString(); });
+      // 以索引對齊，避免 filter 後 names/deadlines 錯位
+      values[0].forEach(function(name, i) {
+        if (name) {
+          homeworkNames.push(String(name));
+          deadlines.push(values[1][i] ? values[1][i].toString() : '');
+        }
+      });
     }
 
     data.homeworks[className] = { names: homeworkNames, deadlines: deadlines };
@@ -285,14 +317,25 @@ function setShareStudents(className, studentsJson) {
 
   const students = JSON.parse(studentsJson);
 
-  // 清除現有資料（第 2 行以下）
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= 2) {
-    sheet.getRange(2, 1, lastRow - 1, 3).clearContent();
+  // 讀取現有資料，保留已填入的文件夾位址（C 欄）。
+  // 鍵使用 id 和 name 的複合 Map，避免分隔符號衝突。
+  const existingUrlMap = {};
+  const existingLastRow = sheet.getLastRow();
+  if (existingLastRow >= 2) {
+    sheet.getRange(2, 1, existingLastRow - 1, 3).getValues().forEach(function(row) {
+      const id   = row[0].toString();
+      const name = row[1].toString();
+      const url  = row[2].toString();
+      if (url) existingUrlMap[id + '|' + name] = url;
+    });
+    sheet.getRange(2, 1, existingLastRow - 1, 3).clearContent();
   }
 
   if (students.length > 0) {
-    const rows = students.map(function(s) { return [s.id || '', s.name || '', '']; });
+    const rows = students.map(function(s) {
+      const key = (s.id || '') + '|' + (s.name || '');
+      return [s.id || '', s.name || '', existingUrlMap[key] || ''];
+    });
     sheet.getRange(2, 1, rows.length, 3).setValues(rows);
   }
 }
@@ -315,4 +358,173 @@ function triggerFolderCreation() {
  */
 function triggerShareAll() {
   shareAllClasses();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 系統設定函數（供 setup.html 的「系統設定」分頁呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取得目前系統設定及各資源的存在狀態，供 Web Panel 顯示。
+ * @returns {Object}
+ */
+function getSystemConfig() {
+  const props  = PropertiesService.getScriptProperties();
+  const config = props.getProperties();
+  return {
+    rootFolderId:        config.ROOT_FOLDER_ID          || '',
+    schoolEmailDomain:   config.SCHOOL_EMAIL_DOMAIN     || SCHOOL_EMAIL_DOMAIN,
+    studentEmailDomain:  config.STUDENT_EMAIL_DOMAIN    || '',
+    hasUploadFolder:     !!config.UPLOAD_FOLDER_ID,
+    hasPendingFolder:    !!config.PENDING_FOLDER_ID,
+    hasTeacherFolder:    !!config.TEACHER_RETURN_FOLDER_ID,
+    hasReturnedFolder:   !!config.RETURNED_FOLDER_ID,
+    hasShareSheet:       !!config.SHARE_SHEET_ID,
+    hasSubmissionSheet:  !!config.SUBMISSION_SHEET_ID,
+    hasOverdueSheet:     !!config.OVERDUE_SHEET_ID,
+    uploadUrl:           config.UPLOAD_FOLDER_ID         ? 'https://drive.google.com/drive/folders/' + config.UPLOAD_FOLDER_ID : '',
+    shareSheetUrl:       config.SHARE_SHEET_ID           ? 'https://docs.google.com/spreadsheets/d/' + config.SHARE_SHEET_ID : '',
+    submissionSheetUrl:  config.SUBMISSION_SHEET_ID      ? 'https://docs.google.com/spreadsheets/d/' + config.SUBMISSION_SHEET_ID : '',
+    overdueSheetUrl:     config.OVERDUE_SHEET_ID         ? 'https://docs.google.com/spreadsheets/d/' + config.OVERDUE_SHEET_ID : ''
+  };
+}
+
+/**
+ * 僅儲存電郵域名設定（不需要重新 setup）。
+ * @param {string} schoolEmailDomain  Google Drive 共用域名
+ * @param {string} studentEmailDomain Microsoft Teams 通知域名
+ */
+function saveEmailDomains(schoolEmailDomain, studentEmailDomain) {
+  const props = PropertiesService.getScriptProperties();
+  if (schoolEmailDomain)  props.setProperty('SCHOOL_EMAIL_DOMAIN',  schoolEmailDomain.trim());
+  if (studentEmailDomain) props.setProperty('STUDENT_EMAIL_DOMAIN', studentEmailDomain.trim());
+  logInfo('saveEmailDomains', '電郵域名設定已更新。');
+}
+
+/**
+ * 從 Web Panel 執行初始設置（等同於 Setup.gs 的 setup()，但接受動態 rootFolderId）。
+ * 設置完成後所有資源 ID 均儲存至 Script Properties，後續呼叫 getConfig() 即可使用。
+ * @param {string} rootFolderId       Google Drive 根文件夾 ID
+ * @param {string} schoolEmailDomain  Google Drive 共用域名（可空，沿用現有值）
+ * @param {string} studentEmailDomain Microsoft Teams 通知域名（可空，沿用現有值）
+ * @returns {string} 完成訊息
+ */
+function runInitialSetup(rootFolderId, schoolEmailDomain, studentEmailDomain) {
+  if (!rootFolderId || !rootFolderId.trim()) {
+    throw new Error('請輸入 Google Drive 根文件夾 ID。');
+  }
+  rootFolderId = rootFolderId.trim();
+
+  try {
+    // 1. 驗證根文件夾可存取
+    const root = DriveApp.getFolderById(rootFolderId);
+
+    // 2. 儲存設定至 Script Properties
+    const props = PropertiesService.getScriptProperties();
+    const updates = { ROOT_FOLDER_ID: rootFolderId };
+    if (schoolEmailDomain)  updates.SCHOOL_EMAIL_DOMAIN  = schoolEmailDomain.trim();
+    if (studentEmailDomain) updates.STUDENT_EMAIL_DOMAIN = studentEmailDomain.trim();
+    props.setProperties(updates);
+
+    // 3. 清除舊的資源 ID，強制重新探索
+    ['UPLOAD_FOLDER_ID', 'PENDING_FOLDER_ID', 'TEACHER_RETURN_FOLDER_ID',
+     'RETURNED_FOLDER_ID', 'SHARE_SHEET_ID', 'SUBMISSION_SHEET_ID', 'OVERDUE_SHEET_ID'
+    ].forEach(function(k) { props.deleteProperty(k); });
+
+    // 4. 建立四個文件夾（冪等）
+    getOrCreateFolder(root, FOLDER_NAMES.UPLOAD);
+    getOrCreateFolder(root, FOLDER_NAMES.PENDING);
+    getOrCreateFolder(root, FOLDER_NAMES.TEACHER_RETURN);
+    getOrCreateFolder(root, FOLDER_NAMES.RETURNED);
+
+    // 5. 建立三個試算表（冪等）
+    var shareSS      = getOrCreateSpreadsheetInFolder(root, SHEET_NAMES.SHARE);
+    var submissionSS = getOrCreateSpreadsheetInFolder(root, SHEET_NAMES.SUBMISSION);
+    var overdueSS    = getOrCreateSpreadsheetInFolder(root, SHEET_NAMES.OVERDUE);
+
+    // 初始化試算表標頭
+    initShareSheet_(shareSS);
+    initOverdueSheet_(overdueSS);
+
+    // 6. 觸發 getConfig() 進行完整探索並儲存所有 ID
+    getConfig();
+
+    logInfo('runInitialSetup', '初始設置完成，根文件夾：' + root.getName());
+    return '✅ 設置完成！已在「' + root.getName() + '」內建立所有文件夾及試算表。';
+  } catch (e) {
+    logError('runInitialSetup', e.message);
+    throw e;
+  }
+}
+
+/**
+ * 在指定文件夾下取得或建立試算表（冪等），並移至該文件夾。
+ * @param {GoogleAppsScript.Drive.Folder} parent
+ * @param {string} name
+ * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
+ */
+function getOrCreateSpreadsheetInFolder(parent, name) {
+  const iter = parent.getFilesByName(name);
+  if (iter.hasNext()) {
+    return SpreadsheetApp.openById(iter.next().getId());
+  }
+  const ss     = SpreadsheetApp.create(name);
+  const ssFile = DriveApp.getFileById(ss.getId());
+  parent.addFile(ssFile);
+  DriveApp.getRootFolder().removeFile(ssFile);
+  return ss;
+}
+
+/** 初始化「自動共用、收集位址」試算表標頭（冪等）。 */
+function initShareSheet_(ss) {
+  const sheet = ss.getSheets()[0];
+  if (!sheet.getRange('A1').getValue()) {
+    sheet.getRange('A1:C1').setValues([['學號', '姓名', '文件夾位址']]);
+    sheet.getRange('A1:C1').setFontWeight('bold');
+  }
+}
+
+/** 初始化「OverdueAssignments」試算表（冪等）。 */
+function initOverdueSheet_(ss) {
+  let sheet = ss.getSheetByName('Overdue Assignments');
+  if (!sheet) {
+    sheet = ss.insertSheet('Overdue Assignments');
+    const defaultSheet = ss.getSheetByName('Sheet1');
+    if (defaultSheet && ss.getSheets().length > 1) ss.deleteSheet(defaultSheet);
+  }
+  if (!sheet.getRange('A1').getValue()) {
+    sheet.getRange('A1:E1').setValues([['班別', '學生姓名', '學生電郵', '課業名稱', '截止日期']]);
+    sheet.getRange('A1:E1').setFontWeight('bold');
+  }
+}
+
+/**
+ * 建立所有觸發器（從 Web Panel 呼叫）。
+ * @returns {string[]} 已建立的觸發器清單
+ */
+function createAllTriggersFromPanel() {
+  try {
+    createCollectTrigger();    // 收集功課（每 1 分鐘）
+    createSubmissionTrigger(); // 繳交狀態更新（每 5 分鐘）
+    createReturnTrigger();     // 自動發還（每 15 分鐘）
+    logInfo('createAllTriggersFromPanel', '已建立所有觸發器。');
+    return getTriggerStatus();
+  } catch (e) {
+    logError('createAllTriggersFromPanel', e.message);
+    throw e;
+  }
+}
+
+/**
+ * 取得目前所有觸發器的狀態。
+ * @returns {Array<{handler:string, intervalMinutes:string}>}
+ */
+function getTriggerStatus() {
+  return ScriptApp.getProjectTriggers().map(function(t) {
+    return {
+      handler: t.getHandlerFunction(),
+      type:    t.getEventType().toString(),
+      source:  t.getTriggerSource().toString()
+    };
+  });
 }

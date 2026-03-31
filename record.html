@@ -171,9 +171,16 @@
 <body>
   <div class="header">
     <h1>作業繳交紀錄</h1>
-    <a href="?">← 返回控制面板</a>
+    <a href="<?= baseUrl ?>">← 返回控制面板</a>
   </div>
   <div class="main-content">
+    <? if (loadError) { ?>
+    <div style="background:rgba(224,82,82,0.25);border:1px solid #e05252;border-radius:8px;
+                padding:14px 18px;margin-bottom:20px;color:#ffcccc;">
+      ⚠️ 載入資料失敗：<?= loadError ?><br>
+      <small>請確認系統已完成初始設置，或前往「班別及學生管理 → 系統日誌」查看詳情。</small>
+    </div>
+    <? } ?>
     <div class="class-buttons" id="class-buttons">
       <? for (const classInfo of classData) { ?>
       <button class="class-button" data-class="<?= classInfo.className ?>"><?= classInfo.className ?></button>
