@@ -59,15 +59,16 @@ function distributeHomework() {
     }
   }
 
-  // 步驟 3：在每位學生的「寫作（長文）」子文件夾下，提取課業關鍵詞
+  // 步驟 3：在每位學生的所有課業類別子文件夾下，提取課業關鍵詞
   const assignmentMap = {};
   for (const classKey in studentMap) {
     for (const studentKey in studentMap[classKey]) {
       const studentFolder = studentMap[classKey][studentKey];
-      const writingFolderIter = studentFolder.getFoldersByName('寫作（長文）');
-      if (writingFolderIter.hasNext()) {
-        const writingFolder = writingFolderIter.next();
-        const assignmentFolderIter = writingFolder.getFolders();
+      // 遍歷學生文件夾下所有類別子文件夾（不限於「寫作（長文）」）
+      const categoryFolderIter = studentFolder.getFolders();
+      while (categoryFolderIter.hasNext()) {
+        const categoryFolder = categoryFolderIter.next();
+        const assignmentFolderIter = categoryFolder.getFolders();
         while (assignmentFolderIter.hasNext()) {
           const assignmentFolder = assignmentFolderIter.next();
           const match = assignmentFolder.getName().match(/【(.*?)】/);

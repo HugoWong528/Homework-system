@@ -163,9 +163,7 @@
 
       <label for="category-select">選擇課業類別：</label>
       <select id="category-select">
-        <option value="閱讀">閱讀</option>
-        <option value="寫作（長文）">寫作（長文）</option>
-        <option value="寫作（實用文）">寫作（實用文）</option>
+        <!-- 動態載入 -->
       </select>
 
       <label for="homework-name">課業名稱：</label>
@@ -219,6 +217,17 @@
             option.textContent = cls;
             classSelect.appendChild(option);
           });
+
+          // 動態填入課業類別
+          const categorySelect = document.getElementById('category-select');
+          categorySelect.innerHTML = '';
+          (data.categories || []).forEach(function(cat) {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            categorySelect.appendChild(option);
+          });
+
           if (data.classes.length > 0) {
             loadHomeworkList(data.homeworks, data.classes[0]);
           }

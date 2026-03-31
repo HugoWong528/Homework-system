@@ -21,6 +21,9 @@ const SCHOOL_EMAIL_DOMAIN = 'ccckyc.edu.hk';
 /** 平台時區（香港時間） */
 const TIMEZONE = 'Asia/Hong_Kong';
 
+/** 預設課業類別（未自訂時使用） */
+const DEFAULT_CATEGORIES = ['閱讀', '寫作（長文）', '寫作（實用文）'];
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Drive 文件夾名稱常數 */
@@ -117,4 +120,30 @@ function getOrCreateFolder(parent, name) {
   const iter = parent.getFoldersByName(name);
   if (iter.hasNext()) return iter.next();
   return parent.createFolder(name);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 課業類別管理
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 從 Script Properties 讀取課業類別清單。
+ * 若尚未設定，回傳 DEFAULT_CATEGORIES。
+ * @returns {string[]}
+ */
+function getCategories() {
+  const json = PropertiesService.getScriptProperties().getProperty('HOMEWORK_CATEGORIES');
+  if (json) {
+    try { return JSON.parse(json); } catch (e) {}
+  }
+  return DEFAULT_CATEGORIES.slice();
+}
+
+/**
+ * 將課業類別清單儲存至 Script Properties。
+ * @param {string[]} categories
+ */
+function saveCategories(categories) {
+  PropertiesService.getScriptProperties()
+    .setProperty('HOMEWORK_CATEGORIES', JSON.stringify(categories));
 }

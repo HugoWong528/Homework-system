@@ -47,6 +47,12 @@ function doGet(e) {
     return template.evaluate().setTitle('班別及學生管理');
   }
 
+  if (page === 'student') {
+    const template = HtmlService.createTemplateFromFile('student');
+    template.baseUrl = baseUrl;
+    return template.evaluate().setTitle('學生課業上傳');
+  }
+
   // 預設：控制面板（即使資料載入失敗也要讓頁面渲染，按鈕仍可使用）
   let classData = [];
   let folderUrls = {
@@ -94,14 +100,14 @@ function getFolderUrls() {
 
 /**
  * 獲取試算表資料（用於 homework.html 的班別選單及現有課業列表）。
- * @returns {{classes: string[], homeworks: Object}}
+ * @returns {{classes: string[], homeworks: Object, categories: string[]}}
  */
 function getSpreadsheetData() {
   const config = getConfig();
   const spreadsheet = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
   const sheets = spreadsheet.getSheets();
 
-  const data = { classes: [], homeworks: {} };
+  const data = { classes: [], homeworks: {}, categories: getCategories() };
 
   sheets.forEach(function(sheet) {
     const className = sheet.getRange('A1').getValue().toString().trim();
@@ -527,4 +533,276 @@ function getTriggerStatus() {
       source:  t.getTriggerSource().toString()
     };
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 課業類別管理函數（供 setup.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取得目前的課業類別清單。
+ * @returns {string[]}
+ */
+function getCategoriesFromPanel() {
+  return getCategories();
+}
+
+/**
+ * 新增課業類別。
+ * @param {string} categoryName 新類別名稱
+ * @returns {string[]} 更新後的類別清單
+ */
+function addCategory(categoryName) {
+  categoryName = categoryName.toString().trim();
+  if (!categoryName) throw new Error('類別名稱不可為空');
+  const cats = getCategories();
+  if (cats.indexOf(categoryName) !== -1) throw new Error('類別「' + categoryName + '」已存在');
+  cats.push(categoryName);
+  saveCategories(cats);
+  logInfo('addCategory', '已新增類別：' + categoryName);
+  return cats;
+}
+
+/**
+ * 刪除課業類別。
+ * @param {string} categoryName 要刪除的類別名稱
+ * @returns {string[]} 更新後的類別清單
+ */
+function removeCategory(categoryName) {
+  const cats = getCategories().filter(function(c) { return c !== categoryName; });
+  saveCategories(cats);
+  logInfo('removeCategory', '已刪除類別：' + categoryName);
+  return cats;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 學生入口函數（供 student.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取得學生入口頁面初始資料：所有班別名稱。
+ * @returns {{ classes: string[] }}
+ */
+function getStudentPageData() {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const classes = ss.getSheets()
+    .map(function(s) { return s.getRange('A1').getValue().toString().trim(); })
+    .filter(Boolean)
+    .filter(function(n) { return n !== '系統日誌'; });
+  return { classes: classes };
+}
+
+/**
+ * 取得指定班別的學生名單。
+ * @param {string} className 班別名稱
+ * @returns {string[]} 學生姓名清單
+ */
+function getStudentsForClass(className) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 4) return [];
+  return sheet.getRange('A4:A' + lastRow).getValues().flat().filter(String);
+}
+
+/**
+ * 取得學生的課業清單及繳交狀態。
+ * @param {string} className   班別名稱
+ * @param {string} studentName 學生姓名
+ * @returns {{ homeworks: Array<{name:string, deadline:string, submitted:boolean, late:boolean}> }}
+ */
+function getStudentHomeworkStatus(className, studentName) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) return { homeworks: [] };
+
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn < 2) return { homeworks: [] };
+
+  const headerRow   = sheet.getRange(1, 2, 1, lastColumn - 1).getValues()[0];
+  const deadlineRow = sheet.getRange(2, 2, 1, lastColumn - 1).getValues()[0];
+  const folderRow   = sheet.getRange(3, 2, 1, lastColumn - 1).getValues()[0];
+
+  const homeworks = [];
+  headerRow.forEach(function(name, i) {
+    if (!name) return;
+    const folderId = folderRow[i] ? folderRow[i].toString() : '';
+    let submitted = false;
+    let late = false;
+    if (folderId) {
+      try {
+        const files = DriveApp.getFolderById(folderId).getFiles();
+        while (files.hasNext()) {
+          const f = files.next();
+          if (f.getName().indexOf(studentName) !== -1) {
+            submitted = true;
+            const deadlineRaw = deadlineRow[i];
+            if (deadlineRaw) {
+              const deadline = (deadlineRaw instanceof Date)
+                ? deadlineRaw
+                : Utilities.parseDate(deadlineRaw.toString(), TIMEZONE, 'yyyy-MM-dd HH:mm');
+              if (f.getDateCreated() > deadline) late = true;
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        logError('getStudentHomeworkStatus', '讀取文件夾失敗：' + folderId, e.message);
+      }
+    }
+
+    let deadlineStr = '';
+    const d = deadlineRow[i];
+    if (d instanceof Date) {
+      deadlineStr = Utilities.formatDate(d, TIMEZONE, 'yyyy-MM-dd HH:mm');
+    } else if (d) {
+      deadlineStr = d.toString();
+    }
+
+    homeworks.push({
+      index:    i,
+      name:     name.toString(),
+      deadline: deadlineStr,
+      folderId: folderId,
+      submitted: submitted,
+      late:     late
+    });
+  });
+
+  return { homeworks: homeworks };
+}
+
+/**
+ * 接收學生上傳的課業檔案，以 Base64 編碼傳遞。
+ * 自動以「班別_姓名_關鍵詞.副檔名」命名並存放至對應文件夾。
+ *
+ * @param {string} className    班別名稱
+ * @param {string} studentName  學生姓名
+ * @param {number} homeworkIndex 課業欄位索引（0-based，對應 B 欄起）
+ * @param {string} originalName 原始檔案名稱（用於取得副檔名）
+ * @param {string} base64Data   Base64 編碼的檔案內容
+ * @param {string} mimeType     檔案 MIME 類型
+ * @returns {string} 成功訊息
+ */
+function uploadHomeworkFile(className, studentName, homeworkIndex, originalName, base64Data, mimeType) {
+  const config = getConfig();
+  const ss = SpreadsheetApp.openById(config.SUBMISSION_SHEET_ID);
+  const sheet = ss.getSheets().find(function(s) {
+    return s.getRange('A1').getValue().toString().trim() === className;
+  });
+  if (!sheet) throw new Error('找不到班別：' + className);
+
+  const lastColumn = sheet.getLastColumn();
+  const colIndex = 2 + homeworkIndex;
+  if (colIndex > lastColumn) throw new Error('找不到指定課業');
+
+  const homeworkName = sheet.getRange(1, colIndex).getValue().toString();
+  const folderId     = sheet.getRange(3, colIndex).getValue().toString();
+  if (!folderId) throw new Error('課業文件夾尚未建立，請稍後再試或聯絡老師。');
+
+  // 從課業名稱提取關鍵詞（【關鍵詞】），或使用去除類別後的名稱
+  const keywordMatch = homeworkName.match(/【(.*?)】/);
+  const keyword = keywordMatch ? keywordMatch[1] : homeworkName.replace(/「.*?」/, '').trim();
+
+  // 取得原始副檔名
+  const extMatch = originalName.match(/\.([^.]+)$/);
+  const ext = extMatch ? '.' + extMatch[1] : '';
+
+  // 最終檔案名稱：班別_姓名_關鍵詞.副檔名
+  const newFileName = className + '_' + studentName + '_' + keyword + ext;
+
+  // 解碼 Base64 並建立 Blob
+  const blob = Utilities.newBlob(
+    Utilities.base64Decode(base64Data), mimeType, newFileName
+  );
+
+  const folder = DriveApp.getFolderById(folderId);
+
+  // 若已存在同名檔案，移至垃圾桶（允許重新提交）
+  const existing = folder.getFilesByName(newFileName);
+  while (existing.hasNext()) {
+    existing.next().setTrashed(true);
+  }
+
+  folder.createFile(blob);
+  logInfo('uploadHomeworkFile', className + ' ' + studentName + ' 提交：' + newFileName);
+  return '✅ 已成功提交「' + keyword + '」課業！';
+}
+
+/**
+ * 取得學生已批改課業文件夾的 URL，並確保只共用給本人。
+ * 若 studentEmail 符合學校域名，則自動將文件夾共用給該學生（檢視者）。
+ *
+ * @param {string} className    班別名稱
+ * @param {string} studentName  學生姓名
+ * @param {string} [studentEmail] 學生電郵（可選，提供則自動共用）
+ * @returns {{ url: string|null, shared: boolean }}
+ */
+function getMarkedWorkAccess(className, studentName, studentEmail) {
+  const config = getConfig();
+  const returnedFolder = DriveApp.getFolderById(config.RETURNED_FOLDER_ID);
+
+  const classIter = returnedFolder.getFoldersByName('【' + className + '】');
+  if (!classIter.hasNext()) return { url: null, shared: false };
+  const classFolder = classIter.next();
+
+  const studentIter = classFolder.getFoldersByName('【' + studentName + '】');
+  if (!studentIter.hasNext()) return { url: null, shared: false };
+  const studentFolder = studentIter.next();
+
+  let shared = false;
+  if (studentEmail) {
+    const domain = PropertiesService.getScriptProperties()
+      .getProperty('SCHOOL_EMAIL_DOMAIN') || SCHOOL_EMAIL_DOMAIN;
+    // 只允許符合學校域名的電郵
+    if (studentEmail.indexOf('@' + domain) !== -1) {
+      try {
+        studentFolder.addViewer(studentEmail);
+        shared = true;
+        logInfo('getMarkedWorkAccess', '已共用文件夾給 ' + studentEmail);
+      } catch (e) {
+        logError('getMarkedWorkAccess', '共用失敗', e.message);
+      }
+    } else {
+      throw new Error('電郵不符合學校域名（@' + domain + '），無法共用。');
+    }
+  }
+
+  return { url: studentFolder.getUrl(), shared: shared };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 共用試算表純文字批量輸入（供 setup.html 呼叫）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 以純文字格式批量輸入共用試算表的學生資料（覆蓋現有資料）。
+ * 每行格式：「學號 姓名」或「學號,姓名」（以空格、逗號或 Tab 分隔）。
+ *
+ * @param {string} className   班別名稱
+ * @param {string} plainText   純文字學生資料
+ */
+function bulkImportShareStudentsText(className, plainText) {
+  const lines = plainText.toString().split('\n');
+  const students = [];
+  lines.forEach(function(line) {
+    line = line.trim();
+    if (!line) return;
+    // 支援空格、Tab、逗號分隔
+    const parts = line.split(/[\s,，\t]+/);
+    if (parts.length >= 2) {
+      students.push({ id: parts[0].trim(), name: parts.slice(1).join(' ').trim() });
+    }
+  });
+  if (students.length === 0) throw new Error('未找到有效的學生資料，請確認格式（每行：學號 姓名）。');
+  setShareStudents(className, JSON.stringify(students));
+  return '✅ 已成功匯入 ' + students.length + ' 位學生。';
 }
