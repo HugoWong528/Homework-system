@@ -14,7 +14,7 @@
  */
 
 // ─── 唯一需要手動設定的值 ────────────────────────────────────────────────────
-const ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
+const OVERDUE_ROOT_FOLDER_ID = 'YOUR_ROOT_FOLDER_ID_HERE'; // ← 只需填寫這個
 // 學生 Microsoft Teams 電郵域名（格式：學號@域名）
 const STUDENT_EMAIL_DOMAIN = 'ms.ccckyc.edu.hk'; // ← 按學校實際域名修改
 /** 平台時區（香港時間）。
@@ -27,12 +27,12 @@ const OVERDUE_TIMEZONE = 'Asia/Hong_Kong';
 /**
  * 從 Script Properties 讀取設定，若尚未設定則自動從根文件夾探索並儲存。
  */
-function getConfig() {
+function getOverdueConfig() {
   const props = PropertiesService.getScriptProperties();
   let config = props.getProperties();
 
   if (!config.SUBMISSION_SHEET_ID || !config.SHARE_SHEET_ID || !config.OVERDUE_SHEET_ID) {
-    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
+    const root = DriveApp.getFolderById(OVERDUE_ROOT_FOLDER_ID);
 
     const subIter = root.getFilesByName('繳交紀錄及課業佈置');
     if (!subIter.hasNext()) {
@@ -72,7 +72,7 @@ function getConfig() {
  * 條件：狀態為「未繳交」且已超過截止日期。
  */
 function generateOverdueAssignments() {
-  const config = getConfig();
+  const config = getOverdueConfig();
 
   // 從「自動共用、收集位址」取得學號→電郵映射（讀取所有班別分頁）
   const studentSpreadsheet = SpreadsheetApp.openById(config.SHARE_SHEET_ID);
